@@ -195,11 +195,11 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 // ============================================================================
 // CONFIG — these are PUBLIC values; safe to ship in the frontend
 // ============================================================================
-const SUPABASE_URL  = 'https://gyrfthjhacvoyhfilnjc.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5cmZ0aGpoYWN2b3loZmlsbmpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTE1MjMsImV4cCI6MjA4ODU4NzUyM30.cI2df-xYe2X-LzC2L4mrtbuhWasAR7tAEOi9qSY9_rM';
+const SUPABASE_URL  = 'REPLACE_WITH_YOUR_SUPABASE_URL';
+const SUPABASE_ANON = 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';
 
 // Admin route config — only used on /admin
-const ADMIN_PIN          = '15147';
+const ADMIN_PIN          = 'REPLACE_WITH_YOUR_PIN';
 const DISCOGS_LOOKUP_URL = `${SUPABASE_URL}/functions/v1/discogs-lookup`;
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
@@ -2495,23 +2495,25 @@ function DisplayQueuePanel({ queue, flash }) {
           ◉ On the deck
         </div>
         {playing ? (
-          <div className="flex items-center gap-3">
-            <div className="w-20 h-20 flex-shrink-0 rounded overflow-hidden shadow-[0_0_24px_var(--hop-glow)]">
-              <CoverImage src={playing.cover_url} alt={playing.album} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="font-display text-2xl text-[var(--text)] leading-none truncate">{clean(playing.album)}</div>
-              <div className="text-[var(--text-dim)] truncate">{clean(playing.artist)}</div>
-              <div className="flex items-center gap-2 mt-1.5">
-                {playing.side && (
-                  <span className="inline-flex items-center justify-center px-2.5 h-7 rounded-md bg-[var(--hop)] text-[#0a1a02] font-display text-lg leading-none shadow-[0_0_12px_var(--hop-glow)]">
-                    SIDE {playing.side}
-                  </span>
-                )}
-                {playing.requested_by && (
-                  <span className="font-mono text-xs text-[var(--text-dim)] truncate">for {playing.requested_by}</span>
-                )}
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="w-20 h-20 flex-shrink-0 rounded overflow-hidden shadow-[0_0_24px_var(--hop-glow)]">
+                <CoverImage src={playing.cover_url} alt={playing.album} />
               </div>
+              <div className="flex-1" />
+              {playing.side && (
+                <span className="flex-shrink-0 inline-flex flex-col items-center justify-center w-16 h-16 rounded-md bg-[var(--hop)] text-[#0a1a02] leading-none shadow-[0_0_16px_var(--hop-glow)]">
+                  <span className="font-mono text-[9px] tracking-wider">SIDE</span>
+                  <span className="font-display text-3xl">{playing.side}</span>
+                </span>
+              )}
+            </div>
+            <div className="mt-2">
+              <div className="font-display text-2xl text-[var(--text)] leading-tight">{clean(playing.album)}</div>
+              <div className="text-base text-[var(--text-dim)] leading-tight">{clean(playing.artist)}</div>
+              {playing.requested_by && (
+                <div className="font-mono text-xs text-[var(--hop)] mt-1">for {playing.requested_by}</div>
+              )}
             </div>
           </div>
         ) : (
@@ -2531,24 +2533,30 @@ function DisplayQueuePanel({ queue, flash }) {
         ) : (
           <ul className="space-y-3">
             {upNext.map((q, i) => (
-              <li key={q.id} className={`flex items-center gap-3 ${i === 0 && flash ? 'fade-rise' : ''}`}>
-                <div className="font-display text-2xl text-[var(--text-faint)] w-7 text-center tabular-nums">{i + 1}</div>
-                <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden">
-                  <CoverImage src={q.cover_url} alt={q.album} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-[var(--text)] leading-tight truncate">{clean(q.album)}</div>
-                  <div className="text-sm text-[var(--text-dim)] leading-tight truncate">{clean(q.artist)}</div>
-                  {q.requested_by && (
-                    <div className="font-mono text-[10px] text-[var(--text-faint)] mt-0.5 truncate">for {q.requested_by}</div>
+              <li key={q.id}
+                className={`rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3 ${i === 0 && flash ? 'fade-rise' : ''}`}>
+                {/* Top row: number + cover + side badge */}
+                <div className="flex items-center gap-3">
+                  <div className="font-display text-3xl text-[var(--text-faint)] w-8 text-center tabular-nums flex-shrink-0">{i + 1}</div>
+                  <div className="w-14 h-14 flex-shrink-0 rounded overflow-hidden">
+                    <CoverImage src={q.cover_url} alt={q.album} />
+                  </div>
+                  <div className="flex-1" />
+                  {q.side && (
+                    <span className="flex-shrink-0 inline-flex flex-col items-center justify-center w-14 h-14 rounded-md border-2 border-[var(--hop)] text-[var(--hop)] leading-none">
+                      <span className="font-mono text-[9px] tracking-wider">SIDE</span>
+                      <span className="font-display text-3xl">{q.side}</span>
+                    </span>
                   )}
                 </div>
-                {q.side && (
-                  <span className="flex-shrink-0 inline-flex flex-col items-center justify-center w-12 h-12 rounded-md border-2 border-[var(--hop)] text-[var(--hop)] leading-none">
-                    <span className="font-mono text-[8px] tracking-wider">SIDE</span>
-                    <span className="font-display text-2xl">{q.side}</span>
-                  </span>
-                )}
+                {/* Title + artist on their own full-width lines */}
+                <div className="mt-2">
+                  <div className="font-display text-2xl text-[var(--text)] leading-tight">{clean(q.album)}</div>
+                  <div className="text-base text-[var(--text-dim)] leading-tight">{clean(q.artist)}</div>
+                  {q.requested_by && (
+                    <div className="font-mono text-xs text-[var(--text-faint)] mt-1">for {q.requested_by}</div>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
