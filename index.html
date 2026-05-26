@@ -2434,8 +2434,16 @@ function DisplayApp() {
 
   const showQueue = queueEnabled === true;
 
+  // Tap/click anywhere to enter true fullscreen (hides Silk/browser chrome on the TV)
+  const goFullscreen = () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement && el.requestFullscreen) {
+      el.requestFullscreen().catch(() => {});
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-[var(--bg)] flex overflow-hidden">
+    <div className="fixed inset-0 bg-[var(--bg)] flex overflow-hidden" onClick={goFullscreen}>
       {/* Slides panel */}
       <div className={`relative h-full transition-all duration-700 ${showQueue ? 'w-3/4' : 'w-full'}`}>
         {slides.length > 0 ? (
@@ -2531,31 +2539,28 @@ function DisplayQueuePanel({ queue, flash }) {
             Queue's open — scan the QR on your table to request a record.
           </div>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {upNext.map((q, i) => (
               <li key={q.id}
-                className={`rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3 ${i === 0 && flash ? 'fade-rise' : ''}`}>
+                className={`rounded-lg border border-[var(--line)] bg-[var(--bg)] p-2.5 ${i === 0 && flash ? 'fade-rise' : ''}`}>
                 {/* Top row: number + cover + side badge */}
-                <div className="flex items-center gap-3">
-                  <div className="font-display text-3xl text-[var(--text-faint)] w-8 text-center tabular-nums flex-shrink-0">{i + 1}</div>
-                  <div className="w-14 h-14 flex-shrink-0 rounded overflow-hidden">
+                <div className="flex items-center gap-2.5">
+                  <div className="font-display text-2xl text-[var(--text-faint)] w-6 text-center tabular-nums flex-shrink-0">{i + 1}</div>
+                  <div className="w-11 h-11 flex-shrink-0 rounded overflow-hidden">
                     <CoverImage src={q.cover_url} alt={q.album} />
                   </div>
                   <div className="flex-1" />
                   {q.side && (
-                    <span className="flex-shrink-0 inline-flex flex-col items-center justify-center w-14 h-14 rounded-md border-2 border-[var(--hop)] text-[var(--hop)] leading-none">
-                      <span className="font-mono text-[9px] tracking-wider">SIDE</span>
-                      <span className="font-display text-3xl">{q.side}</span>
+                    <span className="flex-shrink-0 inline-flex flex-col items-center justify-center w-11 h-11 rounded-md border-2 border-[var(--hop)] text-[var(--hop)] leading-none">
+                      <span className="font-mono text-[8px] tracking-wider">SIDE</span>
+                      <span className="font-display text-2xl">{q.side}</span>
                     </span>
                   )}
                 </div>
                 {/* Title + artist on their own full-width lines */}
-                <div className="mt-2">
-                  <div className="font-display text-2xl text-[var(--text)] leading-tight">{clean(q.album)}</div>
-                  <div className="text-base text-[var(--text-dim)] leading-tight">{clean(q.artist)}</div>
-                  {q.requested_by && (
-                    <div className="font-mono text-xs text-[var(--text-faint)] mt-1">for {q.requested_by}</div>
-                  )}
+                <div className="mt-1.5">
+                  <div className="font-display text-xl text-[var(--text)] leading-tight">{clean(q.album)}</div>
+                  <div className="text-sm text-[var(--text-dim)] leading-tight">{clean(q.artist)}{q.requested_by ? ` · ${q.requested_by}` : ''}</div>
                 </div>
               </li>
             ))}
