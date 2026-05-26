@@ -1,0 +1,2706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0a0a0a" />
+<title>Inner Groove · Vinyl Collection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --hop:        #6dc135;
+    --hop-glow:   #6dc13580;
+    --hop-deep:   #4a8c1f;
+    --bg:         #0a0a0a;
+    --bg-elev:    #141414;
+    --bg-card:    #1a1a1a;
+    --line:       #262626;
+    --text:       #f5f5f5;
+    --text-dim:   #a3a3a3;
+    --text-faint: #525252;
+    --warn:       #fbbf24;
+    --venmo:      #3d95ce;
+  }
+
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+    /* Subtle scanline texture for the CRT/turntable vibe */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, #6dc13510 0%, transparent 60%),
+      repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 3px);
+  }
+
+  .font-display { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.02em; }
+  .font-mono    { font-family: 'JetBrains Mono', monospace; }
+
+  /* Reused glowing-pulsing header from the DJ app */
+  @keyframes glow-pulse {
+    0%, 100% { text-shadow: 0 0 8px var(--hop-glow), 0 0 20px #6dc13540, 0 0 40px #6dc13520; }
+    50%      { text-shadow: 0 0 12px var(--hop), 0 0 28px #6dc13560, 0 0 60px #6dc13540; }
+  }
+  .glow-pulse { color: var(--hop); animation: glow-pulse 3s ease-in-out infinite; }
+
+  /* Vinyl-spin loader */
+  @keyframes spin-record { to { transform: rotate(360deg); } }
+  .spin-record { animation: spin-record 2.4s linear infinite; }
+
+  /* Stagger for grid load */
+  @keyframes fade-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade-rise { animation: fade-rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+  /* Custom scrollbar — barely there */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+  /* Filter chips */
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.375rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    background: var(--bg-elev);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .chip:hover { border-color: var(--hop-deep); color: var(--text); }
+  .chip[data-active="true"] {
+    background: var(--hop);
+    border-color: var(--hop);
+    color: #0a1a02;
+    font-weight: 600;
+  }
+
+  /* Cover art frame */
+  .cover-frame {
+    position: relative;
+    aspect-ratio: 1;
+    background: var(--bg-elev);
+    overflow: hidden;
+  }
+  .cover-frame img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .album-card:hover .cover-frame img { transform: scale(1.04); }
+  .album-card:hover .cover-frame::after {
+    opacity: 1;
+  }
+  .cover-frame::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 60%, var(--hop-glow));
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
+
+  /* Tab underline */
+  .tab-active {
+    color: var(--hop);
+    border-bottom: 2px solid var(--hop);
+    box-shadow: 0 1px 0 0 var(--hop), 0 4px 24px -4px var(--hop-glow);
+  }
+
+  /* Side badge */
+  .side-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.75rem; height: 1.75rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--hop) 0%, var(--hop-deep) 100%);
+    color: #0a1a02;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    box-shadow: 0 0 12px var(--hop-glow);
+  }
+
+  /* Sheet animation for modal */
+  @keyframes sheet-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scrim-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .sheet-anim { animation: sheet-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .scrim-anim { animation: scrim-in 0.2s ease both; }
+
+  /* Vote button bump */
+  @keyframes vote-bump {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+  .vote-bump { animation: vote-bump 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+  /* Hide elements outside the safe area on iPhone */
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* Status pill colors */
+  .pill-available { background: #6dc13520; color: var(--hop); border: 1px solid var(--hop-deep); }
+  .pill-playing   { background: #fbbf2420; color: var(--warn); border: 1px solid #b88820; }
+  .pill-damaged   { background: #ef444420; color: #f87171; border: 1px solid #b91c1c; }
+  .pill-missing   { background: #52525220; color: var(--text-dim); border: 1px solid var(--text-faint); }
+  .pill-featured  { background: linear-gradient(90deg, var(--hop) 0%, #fbbf24 100%); color: #0a0a0a; border: none; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+// ============================================================================
+// CONFIG — these are PUBLIC values; safe to ship in the frontend
+// ============================================================================
+const SUPABASE_URL  = 'https://gyrfthjhacvoyhfilnjc.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5cmZ0aGpoYWN2b3loZmlsbmpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTE1MjMsImV4cCI6MjA4ODU4NzUyM30.cI2df-xYe2X-LzC2L4mrtbuhWasAR7tAEOi9qSY9_rM';
+
+// Admin route config — only used on /admin
+const ADMIN_PIN          = '15147';
+const DISCOGS_LOOKUP_URL = `${SUPABASE_URL}/functions/v1/discogs-lookup`;
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: { persistSession: false },
+});
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+/** Stable per-device voter ID for wishlist upvotes (honor system, like DJ app). */
+function getVoterId() {
+  let id;
+  try {
+    id = localStorage.getItem('igb_voter_id');
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem('igb_voter_id', id);
+    }
+  } catch {
+    // localStorage blocked — use an ephemeral id (votes won't persist across reloads)
+    id = 'ephemeral-' + Math.random().toString(36).slice(2);
+  }
+  return id;
+}
+
+/** Bucket a year into a decade label like "1970s". */
+function decadeOf(year) {
+  if (!year) return null;
+  const d = Math.floor(year / 10) * 10;
+  return `${d}s`;
+}
+
+/** Strip parenthetical suffixes from artist/album for cleaner display. */
+function clean(text) {
+  return (text || '').replace(/\s+/g, ' ').trim();
+}
+
+/** Compare strings for sort, case-insensitive, ignoring leading "The ". */
+function nameKey(s) {
+  return (s || '').toLowerCase().replace(/^the\s+/, '');
+}
+
+/** Escape a value for safe CSV inclusion. RFC 4180:
+ *  - if the value contains a comma, quote, or newline, wrap in double quotes
+ *  - any internal double quotes get doubled */
+function csvCell(val) {
+  if (val == null) return '';
+  const s = typeof val === 'string' ? val : String(val);
+  if (/[",\r\n]/.test(s)) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+/** Build a CSV string from a header row + array of objects.
+ *  columns is an array of [key, label] tuples; label is what shows in the
+ *  CSV header, key is the property to read from each row. */
+function buildCsv(rows, columns) {
+  const header = columns.map(([, label]) => csvCell(label)).join(',');
+  const lines  = rows.map((r) =>
+    columns.map(([key]) => csvCell(r[key])).join(',')
+  );
+  // Lead with a UTF-8 BOM so Excel opens it correctly with non-ASCII chars
+  return '\uFEFF' + [header, ...lines].join('\r\n');
+}
+
+/** Trigger a download of `content` as `filename` in the user's browser. */
+function downloadFile(filename, content, mimeType = 'text/csv;charset=utf-8') {
+  const blob = new Blob([content], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Defer revoke so Safari has time to start the download
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Format a Date or ISO string for filename usage: 2026-05-03 */
+function ymd(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ============================================================================
+// SHARED UI BITS
+// ============================================================================
+
+function VinylSpinner({ size = 64 }) {
+  return (
+    <div className="flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg viewBox="0 0 64 64" width={size} height={size} className="spin-record">
+        <defs>
+          <radialGradient id="vinyl-grad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"  stopColor="#1a1a1a" />
+            <stop offset="60%" stopColor="#0a0a0a" />
+            <stop offset="100%" stopColor="#000" />
+          </radialGradient>
+        </defs>
+        <circle cx="32" cy="32" r="30" fill="url(#vinyl-grad)" />
+        {[28, 24, 20, 16].map((r) => (
+          <circle key={r} cx="32" cy="32" r={r} fill="none" stroke="#262626" strokeWidth="0.5" />
+        ))}
+        <circle cx="32" cy="32" r="10" fill="#6dc135" />
+        <circle cx="32" cy="32" r="2"  fill="#0a0a0a" />
+        <circle cx="32" cy="22" r="0.8" fill="#6dc135" opacity="0.8" />
+      </svg>
+    </div>
+  );
+}
+
+function StatusPill({ status }) {
+  const map = {
+    available: { label: 'Available',  cls: 'pill-available' },
+    playing:   { label: 'On the deck',cls: 'pill-playing'   },
+    damaged:   { label: 'Damaged',    cls: 'pill-damaged'   },
+    missing:   { label: 'Missing',    cls: 'pill-missing'   },
+    featured:  { label: '★ Featured', cls: 'pill-featured'  },
+  };
+  const s = map[status] || map.available;
+  if (status === 'available') return null; // default; no need to clutter
+  return (
+    <span className={`text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded ${s.cls}`}>
+      {s.label}
+    </span>
+  );
+}
+
+function CoverImage({ src, alt }) {
+  const [errored, setErrored] = useState(false);
+  if (!src || errored) {
+    // Fallback: vinyl glyph
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-neutral-900">
+        <VinylSpinner size={48} />
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} loading="lazy" onError={() => setErrored(true)} />;
+}
+
+// ============================================================================
+// HEADER + NAV
+// ============================================================================
+function Header({ tab, setTab }) {
+  return (
+    <header className="sticky top-0 z-40 bg-[var(--bg)]/85 backdrop-blur-md border-b border-[var(--line)]">
+      <div className="max-w-5xl mx-auto px-4 pt-3 pb-0">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.25em] text-[var(--text-faint)] uppercase">
+              Inner Groove Brewing · Verona
+            </div>
+            <h1 className="font-display text-3xl sm:text-4xl glow-pulse leading-none">
+              The Stacks
+            </h1>
+          </div>
+          <div className="text-right">
+            <div className="font-mono text-[10px] text-[var(--text-faint)] uppercase tracking-wider">
+              Vinyl Collection
+            </div>
+          </div>
+        </div>
+        <nav className="flex gap-6 -mb-px">
+          <button
+            onClick={() => setTab('browse')}
+            className={`font-display text-xl pb-2 px-1 transition-colors ${
+              tab === 'browse' ? 'tab-active' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+            }`}>
+            Browse
+          </button>
+          <button
+            onClick={() => setTab('wishlist')}
+            className={`font-display text-xl pb-2 px-1 transition-colors ${
+              tab === 'wishlist' ? 'tab-active' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+            }`}>
+            Wishlist
+          </button>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+// ============================================================================
+// BROWSE TAB
+// ============================================================================
+function BrowseTab({ inventory, loading, queueEnabled }) {
+  const [query, setQuery]       = useState('');
+  const [sort, setSort]         = useState('artist');     // artist | recent | random
+  const [genre, setGenre]       = useState(null);
+  const [decade, setDecade]     = useState(null);
+  const [showAllGenres, setShowAllGenres] = useState(false);
+  const [randomSeed, setRandomSeed] = useState(0);
+  const [selected, setSelected] = useState(null);
+
+  // Derive available genres + decades from the inventory
+  const { topGenres, allGenres, decades } = useMemo(() => {
+    const gCount = new Map();
+    const dSet = new Set();
+    for (const r of inventory) {
+      for (const g of (r.genres || [])) {
+        gCount.set(g, (gCount.get(g) || 0) + 1);
+      }
+      const d = decadeOf(r.year);
+      if (d) dSet.add(d);
+    }
+    const sortedGenres = [...gCount.entries()].sort((a, b) => b[1] - a[1]).map(([g]) => g);
+    return {
+      topGenres: sortedGenres.slice(0, 8),
+      allGenres: sortedGenres,
+      decades: [...dSet].sort(),
+    };
+  }, [inventory]);
+
+  // Apply filters + search + sort
+  const filtered = useMemo(() => {
+    let list = inventory;
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      list = list.filter((r) =>
+        r.artist.toLowerCase().includes(q) || r.album.toLowerCase().includes(q)
+      );
+    }
+    if (genre)  list = list.filter((r) => (r.genres || []).includes(genre));
+    if (decade) list = list.filter((r) => decadeOf(r.year) === decade);
+
+    const out = [...list];
+    if (sort === 'artist') {
+      out.sort((a, b) => {
+        const ka = nameKey(a.artist), kb = nameKey(b.artist);
+        if (ka !== kb) return ka.localeCompare(kb);
+        return nameKey(a.album).localeCompare(nameKey(b.album));
+      });
+    } else if (sort === 'recent') {
+      out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (sort === 'random') {
+      // Stable shuffle keyed on randomSeed so the order doesn't churn on every render
+      const seed = randomSeed;
+      out.sort((a, b) => {
+        const ha = ((a.id || '').charCodeAt(0) + seed) * 9301 % 233280;
+        const hb = ((b.id || '').charCodeAt(0) + seed) * 9301 % 233280;
+        return ha - hb;
+      });
+    }
+    return out;
+  }, [inventory, query, sort, genre, decade, randomSeed]);
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-4">
+      {/* Search */}
+      <div className="relative mb-4">
+        <input
+          type="search"
+          inputMode="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search artist or album…"
+          className="w-full bg-[var(--bg-elev)] border border-[var(--line)] rounded-lg px-4 py-3 pr-10 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)] transition"
+        />
+        <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-faint)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+        </svg>
+      </div>
+
+      {/* Filter row: sort */}
+      <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-1 -mx-4 px-4">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)] mr-1">Sort</span>
+        {[
+          ['artist', 'A→Z'],
+          ['recent', 'New arrivals'],
+          ['random', 'Surprise me'],
+        ].map(([k, label]) => (
+          <button
+            key={k}
+            className="chip"
+            data-active={sort === k}
+            onClick={() => {
+              setSort(k);
+              if (k === 'random') setRandomSeed(Math.random() * 1000 | 0);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+        {sort === 'random' && (
+          <button className="chip" onClick={() => setRandomSeed(Math.random() * 1000 | 0)}>
+            ↻ Reshuffle
+          </button>
+        )}
+      </div>
+
+      {/* Filter row: genres */}
+      {topGenres.length > 0 && (
+        <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-1 -mx-4 px-4">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)] mr-1">Genre</span>
+          <button className="chip" data-active={!genre} onClick={() => setGenre(null)}>All</button>
+          {(showAllGenres ? allGenres : topGenres).map((g) => (
+            <button key={g} className="chip" data-active={genre === g} onClick={() => setGenre(genre === g ? null : g)}>
+              {g}
+            </button>
+          ))}
+          {allGenres.length > topGenres.length && (
+            <button className="chip" onClick={() => setShowAllGenres((v) => !v)}>
+              {showAllGenres ? 'Less' : `+${allGenres.length - topGenres.length} more`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Filter row: decades */}
+      {decades.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-1 -mx-4 px-4">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)] mr-1">Era</span>
+          <button className="chip" data-active={!decade} onClick={() => setDecade(null)}>All</button>
+          {decades.map((d) => (
+            <button key={d} className="chip" data-active={decade === d} onClick={() => setDecade(decade === d ? null : d)}>
+              {d}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Result count */}
+      <div className="font-mono text-[11px] uppercase tracking-wider text-[var(--text-faint)] mb-3">
+        {loading ? 'Loading…' : `${filtered.length} ${filtered.length === 1 ? 'record' : 'records'}`}
+        {(genre || decade) && (
+          <button
+            onClick={() => { setGenre(null); setDecade(null); }}
+            className="ml-3 text-[var(--hop)] hover:underline"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Grid */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <VinylSpinner size={80} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <EmptyState query={query} hasFilters={!!(genre || decade)} />
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+          {filtered.map((rec, i) => (
+            <button
+              key={rec.id}
+              onClick={() => setSelected(rec)}
+              className="album-card text-left fade-rise"
+              style={{ animationDelay: `${Math.min(i, 24) * 25}ms` }}
+            >
+              <div className="cover-frame rounded-md border border-[var(--line)]">
+                <CoverImage src={rec.cover_url} alt={`${rec.artist} - ${rec.album}`} />
+                {rec.status && rec.status !== 'available' && (
+                  <div className="absolute top-2 left-2">
+                    <StatusPill status={rec.status} />
+                  </div>
+                )}
+              </div>
+              <div className="mt-2">
+                <div className="text-[13px] font-semibold text-[var(--text)] leading-tight line-clamp-2">
+                  {clean(rec.album)}
+                </div>
+                <div className="text-[12px] text-[var(--text-dim)] leading-tight mt-0.5 line-clamp-1">
+                  {clean(rec.artist)}
+                </div>
+                {rec.year && (
+                  <div className="font-mono text-[10px] text-[var(--text-faint)] mt-1">
+                    {rec.year}
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selected && <AlbumDetail record={selected} onClose={() => setSelected(null)} queueEnabled={queueEnabled} />}
+    </div>
+  );
+}
+
+function EmptyState({ query, hasFilters }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <VinylSpinner size={64} />
+      <div className="font-display text-2xl mt-4 text-[var(--text-dim)]">
+        {query ? 'No matches' : hasFilters ? 'No records in those filters' : 'The crate is empty'}
+      </div>
+      <p className="text-sm text-[var(--text-faint)] mt-2 max-w-xs">
+        {query
+          ? "Try a different search, or hit the Wishlist tab to request it."
+          : hasFilters
+          ? 'Try clearing some filters.'
+          : 'Records will appear here as they get added.'}
+      </p>
+    </div>
+  );
+}
+
+// ============================================================================
+// ALBUM DETAIL MODAL — tracklist by side, Discogs link, paper-form prompt
+// ============================================================================
+function AlbumDetail({ record, onClose, queueEnabled }) {
+  const sheetRef = useRef(null);
+  const [showRequest, setShowRequest] = useState(false);
+
+  // Esc to close, lock body scroll while open
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  // Group tracks by side
+  const sides = useMemo(() => {
+    if (!record.tracklist) return [];
+    const groups = new Map();
+    for (const t of record.tracklist) {
+      const s = t.side || '?';
+      if (!groups.has(s)) groups.set(s, []);
+      groups.get(s).push(t);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [record.tracklist]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center scrim-anim"
+      style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        ref={sheetRef}
+        className="sheet-anim relative bg-[var(--bg-elev)] border-t sm:border border-[var(--line)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto safe-bottom"
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center rounded-full bg-black/50 backdrop-blur text-white hover:bg-black/80 transition"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+          </svg>
+        </button>
+
+        {/* Hero */}
+        <div className="relative p-4 sm:p-6 flex flex-col sm:flex-row gap-5">
+          <div className="w-full sm:w-48 flex-shrink-0">
+            <div className="cover-frame rounded-lg border border-[var(--line)] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+              <CoverImage src={record.cover_url} alt={`${record.artist} - ${record.album}`} />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-faint)] mb-1">
+              {record.year || '—'}{record.year && (record.genres?.length || record.styles?.length) ? ' · ' : ''}
+              {(record.genres || []).slice(0, 2).join(' · ')}
+            </div>
+            <h2 className="font-display text-3xl sm:text-4xl text-[var(--text)] leading-none">
+              {clean(record.album)}
+            </h2>
+            <div className="text-lg text-[var(--text-dim)] mt-1">
+              {clean(record.artist)}
+            </div>
+
+            {(record.styles?.length > 0) && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {record.styles.slice(0, 5).map((s) => (
+                  <span key={s} className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-[var(--line)] text-[var(--text-dim)]">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {record.status && record.status !== 'available' && (
+              <div className="mt-3"><StatusPill status={record.status} /></div>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {record.discogs_url && (
+                <a
+                  href={record.discogs_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--hop)] hover:text-[var(--hop)] transition"
+                >
+                  Discogs ↗
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tracklist by side */}
+        {sides.length > 0 ? (
+          <div className="px-4 sm:px-6 pb-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-faint)] mb-3">
+              Tracklist · pick a side
+            </div>
+            <div className="space-y-5">
+              {sides.map(([side, tracks]) => (
+                <div key={side}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="side-badge">{side}</div>
+                    <div className="font-display text-xl text-[var(--text-dim)]">Side {side}</div>
+                    <div className="font-mono text-[10px] text-[var(--text-faint)] ml-auto">
+                      {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
+                    </div>
+                  </div>
+                  <ol className="border border-[var(--line)] rounded-md overflow-hidden">
+                    {tracks.map((t, i) => (
+                      <li
+                        key={`${side}-${i}`}
+                        className="flex items-center gap-3 px-3 py-2 border-b border-[var(--line)] last:border-b-0 text-sm hover:bg-[var(--bg-card)] transition"
+                      >
+                        <span className="font-mono text-[10px] text-[var(--text-faint)] w-6 tabular-nums">
+                          {t.position || i + 1}
+                        </span>
+                        <span className="flex-1 truncate text-[var(--text)]">{t.title}</span>
+                        {t.duration && (
+                          <span className="font-mono text-[11px] text-[var(--text-faint)] tabular-nums">
+                            {t.duration}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="px-4 sm:px-6 pb-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-faint)] mb-3">
+              Tracklist
+            </div>
+            <div className="border border-dashed border-[var(--line)] rounded-md p-4 text-center text-[var(--text-faint)] text-sm">
+              No tracklist on file. Check the sleeve or hit the Discogs link.
+            </div>
+          </div>
+        )}
+
+        {/* Request to play (when queue is on) + paper-slip prompt */}
+        {queueEnabled === true && (
+          <div className="mx-4 sm:mx-6 mb-3">
+            <button
+              onClick={() => setShowRequest(true)}
+              className="w-full py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-2xl tracking-wider hover:brightness-110 transition shadow-[0_0_24px_var(--hop-glow)]"
+            >
+              ♪ Request to play
+            </button>
+          </div>
+        )}
+        <div className="mx-4 sm:mx-6 mb-5 p-4 rounded-lg border border-[var(--hop-deep)] bg-gradient-to-br from-[#6dc13510] to-transparent">
+          <div className="font-display text-xl text-[var(--hop)] glow-pulse leading-none mb-1">
+            Want to hear it?
+          </div>
+          <p className="text-sm text-[var(--text-dim)]">
+            {queueEnabled === true
+              ? 'Tap "Request to play" above to add it to the queue on the big screen — or drop a paper slip at the bar. Either works.'
+              : 'Fill out a paper request slip at the bar. Note the album, the side you want, and your name — the bartender will spin it up when they can.'}
+          </p>
+        </div>
+      </div>
+      {showRequest && (
+        <RequestToPlayModal
+          record={record}
+          onClose={() => setShowRequest(false)}
+          onRequested={() => {}}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// WISHLIST TAB
+// ============================================================================
+function WishlistTab() {
+  const [items, setItems]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [voted, setVoted]     = useState(new Set());
+  const [showAdd, setShowAdd] = useState(false);
+  const [sort, setSort]       = useState('top'); // top | new
+  const voterId = useRef(getVoterId()).current;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [{ data: w, error: e1 }, { data: v, error: e2 }] = await Promise.all([
+      supabase.from('vinyl_wishlist').select('*').neq('status', 'declined'),
+      supabase.from('vinyl_wishlist_votes').select('wishlist_id').eq('voter_id', voterId),
+    ]);
+    if (e1) console.error(e1);
+    if (e2) console.error(e2);
+    setItems(w || []);
+    setVoted(new Set((v || []).map((r) => r.wishlist_id)));
+    setLoading(false);
+  }, [voterId]);
+
+  useEffect(() => {
+    load();
+    // Realtime: bumps + new submissions appear live
+    const channel = supabase
+      .channel('vinyl_wishlist_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vinyl_wishlist' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vinyl_wishlist_votes' }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load]);
+
+  const sorted = useMemo(() => {
+    const out = [...items];
+    if (sort === 'top') out.sort((a, b) => b.vote_count - a.vote_count || new Date(b.created_at) - new Date(a.created_at));
+    else                out.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return out;
+  }, [items, sort]);
+
+  const toggleVote = async (item) => {
+    const has = voted.has(item.id);
+    // Optimistic update
+    setVoted((prev) => {
+      const next = new Set(prev);
+      if (has) next.delete(item.id); else next.add(item.id);
+      return next;
+    });
+    setItems((prev) => prev.map((r) =>
+      r.id === item.id ? { ...r, vote_count: r.vote_count + (has ? -1 : 1) } : r
+    ));
+
+    if (has) {
+      const { error } = await supabase
+        .from('vinyl_wishlist_votes')
+        .delete()
+        .eq('wishlist_id', item.id)
+        .eq('voter_id', voterId);
+      if (error) { console.error(error); load(); }
+    } else {
+      const { error } = await supabase
+        .from('vinyl_wishlist_votes')
+        .insert({ wishlist_id: item.id, voter_id: voterId });
+      if (error) { console.error(error); load(); }
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-4">
+      {/* Top: intro + add button */}
+      <div className="mb-4">
+        <h2 className="font-display text-3xl text-[var(--text)] leading-none">
+          Don't see what you want?
+        </h2>
+        <p className="text-sm text-[var(--text-dim)] mt-1.5">
+          Suggest an album below. Vote up the ones you'd like to hear — popular
+          requests get added to the collection.
+        </p>
+      </div>
+
+      <button
+        onClick={() => setShowAdd(true)}
+        className="w-full mb-5 py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-2xl tracking-wider hover:brightness-110 transition shadow-[0_0_24px_var(--hop-glow)]"
+      >
+        + Suggest an album
+      </button>
+
+      {/* Sort */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)] mr-1">Sort</span>
+        <button className="chip" data-active={sort === 'top'} onClick={() => setSort('top')}>Most votes</button>
+        <button className="chip" data-active={sort === 'new'} onClick={() => setSort('new')}>Newest</button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <VinylSpinner size={64} />
+        </div>
+      ) : sorted.length === 0 ? (
+        <div className="border border-dashed border-[var(--line)] rounded-lg p-8 text-center">
+          <div className="font-display text-2xl text-[var(--text-dim)]">No requests yet</div>
+          <p className="text-sm text-[var(--text-faint)] mt-1">Be the first to suggest one.</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {sorted.map((item) => (
+            <WishlistItem key={item.id} item={item} voted={voted.has(item.id)} onToggle={() => toggleVote(item)} />
+          ))}
+        </ul>
+      )}
+
+      {showAdd && <WishlistAddForm onClose={() => setShowAdd(false)} onAdded={load} />}
+    </div>
+  );
+}
+
+function WishlistItem({ item, voted, onToggle }) {
+  const [bump, setBump] = useState(false);
+  const handleClick = () => {
+    setBump(true);
+    setTimeout(() => setBump(false), 350);
+    onToggle();
+  };
+  return (
+    <li className={`flex items-center gap-3 p-3 rounded-lg border transition ${
+      voted ? 'border-[var(--hop-deep)] bg-[#6dc1350a]' : 'border-[var(--line)] bg-[var(--bg-elev)]'
+    }`}>
+      <button
+        onClick={handleClick}
+        aria-label={voted ? 'Remove your vote' : 'Vote up'}
+        className={`flex flex-col items-center justify-center w-12 h-14 rounded-md border transition ${
+          voted
+            ? 'border-[var(--hop)] bg-[var(--hop)] text-[#0a1a02]'
+            : 'border-[var(--line)] bg-[var(--bg-card)] text-[var(--text-dim)] hover:border-[var(--hop)] hover:text-[var(--hop)]'
+        } ${bump ? 'vote-bump' : ''}`}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+        </svg>
+        <div className="font-display text-base leading-none mt-0.5 tabular-nums">{item.vote_count}</div>
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-[var(--text)] leading-tight truncate">
+          {clean(item.album)}
+        </div>
+        <div className="text-sm text-[var(--text-dim)] leading-tight mt-0.5 truncate">
+          {clean(item.artist)}
+          {item.year && <span className="text-[var(--text-faint)]"> · {item.year}</span>}
+        </div>
+        {item.note && (
+          <div className="text-[11px] text-[var(--text-faint)] mt-1 italic line-clamp-2">
+            "{item.note}"{item.submitted_by ? ` — ${item.submitted_by}` : ''}
+          </div>
+        )}
+        {item.status === 'ordered' && (
+          <div className="font-mono text-[10px] uppercase tracking-wider mt-1.5 text-[var(--warn)]">
+            ◉ On order
+          </div>
+        )}
+        {item.status === 'acquired' && (
+          <div className="font-mono text-[10px] uppercase tracking-wider mt-1.5 text-[var(--hop)]">
+            ✓ In the collection
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function WishlistAddForm({ onClose, onAdded }) {
+  const [artist, setArtist]   = useState('');
+  const [album, setAlbum]     = useState('');
+  const [name, setName]       = useState('');
+  const [email, setEmail]     = useState('');
+  const [note, setNote]       = useState('');
+  const [notifyOnAcquired, setNotifyOnAcquired]       = useState(true);
+  const [subscribeNewsletter, setSubscribeNewsletter] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const emailLooksValid = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((e || '').trim());
+
+  const submit = async () => {
+    setErr(null);
+    if (!artist.trim() || !album.trim()) {
+      setErr('Artist and album are required.');
+      return;
+    }
+    if (!email.trim()) {
+      setErr('Email is required so we can let you know if your record gets added.');
+      return;
+    }
+    if (!emailLooksValid(email)) {
+      setErr("That email doesn't look right. Double-check it?");
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.from('vinyl_wishlist').insert({
+      artist: artist.trim(),
+      album: album.trim(),
+      submitted_by: name.trim() || null,
+      note: note.trim() || null,
+      submitter_email: email.trim().toLowerCase(),
+      notify_on_acquired: notifyOnAcquired,
+      subscribe_newsletter: subscribeNewsletter,
+    });
+    setSubmitting(false);
+    if (error) {
+      console.error(error);
+      if (error.code === '23514' && /email_format/.test(error.message || '')) {
+        setErr("That email doesn't look right. Double-check it?");
+      } else {
+        setErr('Could not submit. Try again?');
+      }
+      return;
+    }
+    onAdded();
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center scrim-anim"
+      style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="sheet-anim bg-[var(--bg-elev)] border-t sm:border border-[var(--line)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-5 safe-bottom max-h-[92vh] overflow-y-auto">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="font-display text-2xl text-[var(--hop)] glow-pulse leading-none">
+            Suggest an album
+          </h3>
+          <button onClick={onClose} aria-label="Close" className="w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-dim)] hover:text-[var(--text)]">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Artist *</span>
+            <input
+              value={artist}
+              onChange={(e) => setArtist(e.target.value)}
+              placeholder="e.g. Tame Impala"
+              className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)]"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Album *</span>
+            <input
+              value={album}
+              onChange={(e) => setAlbum(e.target.value)}
+              placeholder="e.g. Currents"
+              className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)]"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Email *</span>
+            <input
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)]"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Your name (optional)</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Brian"
+              className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)]"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Why? (optional)</span>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Best record of the decade. Trust me."
+              rows={2}
+              maxLength={200}
+              className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)] resize-none"
+            />
+          </label>
+        </div>
+
+        {/* Opt-in checkboxes */}
+        <div className="mt-4 space-y-2 pt-3 border-t border-[var(--line)]">
+          <label className="flex items-start gap-2.5 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={notifyOnAcquired}
+              onChange={(e) => setNotifyOnAcquired(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[var(--hop)] cursor-pointer"
+            />
+            <span className="text-[13px] text-[var(--text-dim)] group-hover:text-[var(--text)] leading-snug">
+              <strong className="text-[var(--text)]">Email me</strong> if Inner Groove adds this record to the collection.
+            </span>
+          </label>
+          <label className="flex items-start gap-2.5 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={subscribeNewsletter}
+              onChange={(e) => setSubscribeNewsletter(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[var(--hop)] cursor-pointer"
+            />
+            <span className="text-[13px] text-[var(--text-dim)] group-hover:text-[var(--text)] leading-snug">
+              Sign me up for the <strong className="text-[var(--text)]">Inner Groove newsletter</strong> — beer drops, vinyl events, the occasional show.
+            </span>
+          </label>
+        </div>
+
+        {err && (
+          <div className="mt-3 text-sm text-red-400">{err}</div>
+        )}
+
+        <button
+          onClick={submit}
+          disabled={submitting}
+          className="mt-5 w-full py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-xl tracking-wider hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        >
+          {submitting ? 'Submitting…' : 'Submit'}
+        </button>
+
+        <p className="mt-3 text-[10px] text-[var(--text-faint)] leading-relaxed">
+          We'll only email you about what you opt into above. We don't share your email.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// ADMIN APP — staff-only, lives at /admin
+// ============================================================================
+
+/** Simple session-based gate. PIN check stored in sessionStorage so each new
+ *  tab/closed-browser requires re-auth, but a refresh doesn't kick you out. */
+function PinGate({ onUnlock }) {
+  const [pin, setPin] = useState('');
+  const [err, setErr] = useState('');
+  const [shake, setShake] = useState(false);
+
+  const submit = (e) => {
+    e?.preventDefault?.();
+    if (pin === ADMIN_PIN) {
+      try { sessionStorage.setItem('igb_vinyl_admin_unlocked', '1'); } catch {}
+      onUnlock();
+    } else {
+      setErr('Wrong PIN');
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
+      setPin('');
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6">
+      <form onSubmit={submit} className={`w-full max-w-xs ${shake ? 'vote-bump' : ''}`}>
+        <div className="text-center mb-6">
+          <div className="font-mono text-[10px] tracking-[0.25em] text-[var(--text-faint)] uppercase mb-1">
+            Inner Groove · Staff Only
+          </div>
+          <h1 className="font-display text-4xl glow-pulse leading-none">Vinyl Admin</h1>
+        </div>
+        <input
+          type="password"
+          inputMode="numeric"
+          autoFocus
+          value={pin}
+          onChange={(e) => { setPin(e.target.value); setErr(''); }}
+          placeholder="PIN"
+          className="w-full text-center font-mono text-2xl bg-[var(--bg-elev)] border border-[var(--line)] rounded-lg px-4 py-3 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)] tracking-[0.5em]"
+        />
+        {err && <div className="text-center text-sm text-red-400 mt-2">{err}</div>}
+        <button
+          type="submit"
+          className="mt-4 w-full py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-xl tracking-wider hover:brightness-110 transition shadow-[0_0_24px_var(--hop-glow)]"
+        >
+          Unlock
+        </button>
+        <a href="/" className="block text-center text-xs text-[var(--text-faint)] hover:text-[var(--text-dim)] mt-4 underline">
+          Back to patron view
+        </a>
+      </form>
+    </div>
+  );
+}
+
+function AdminHeader({ view, setView }) {
+  return (
+    <header className="sticky top-0 z-40 bg-[var(--bg)]/85 backdrop-blur-md border-b border-[var(--line)]">
+      <div className="max-w-3xl mx-auto px-4 pt-3 pb-0">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-mono text-[10px] tracking-[0.25em] text-[var(--text-faint)] uppercase">
+              IGB · Vinyl Admin
+            </div>
+            <h1 className="font-display text-3xl glow-pulse leading-none">Stack Manager</h1>
+          </div>
+          <button
+            onClick={() => {
+              try { sessionStorage.removeItem('igb_vinyl_admin_unlocked'); } catch {}
+              window.location.reload();
+            }}
+            className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)] hover:text-[var(--text-dim)]"
+          >
+            Lock
+          </button>
+        </div>
+        <nav className="flex gap-5 -mb-px overflow-x-auto">
+          {[
+            ['scan',     'Scan'],
+            ['manual',   'Add manually'],
+            ['inventory','Manage'],
+            ['wishlist', 'Wishlist'],
+          ].map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setView(k)}
+              className={`font-display text-lg pb-2 px-1 transition-colors whitespace-nowrap ${
+                view === k ? 'tab-active' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// SCAN VIEW — phone camera + barcode detection + Discogs lookup + save
+// ----------------------------------------------------------------------------
+function ScanView() {
+  const videoRef     = useRef(null);
+  const streamRef    = useRef(null);
+  const detectorRef  = useRef(null);
+  const scanningRef  = useRef(false);
+  const lastScanRef  = useRef(0);
+
+  const [supported,   setSupported]   = useState(true);
+  const [scanning,    setScanning]    = useState(false);
+  const [lookingUp,   setLookingUp]   = useState(false);
+  const [preview,     setPreview]     = useState(null);  // { record, alternates, barcode }
+  const [error,       setError]       = useState('');
+  const [manualBarcode, setManualBarcode] = useState('');
+  const [savedFlash,  setSavedFlash]  = useState(null);
+
+  // Check BarcodeDetector support up front
+  useEffect(() => {
+    if (typeof window.BarcodeDetector === 'undefined') {
+      setSupported(false);
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    scanningRef.current = false;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setScanning(false);
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setError('');
+    setPreview(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setScanning(true);
+
+      // Initialize detector — UPC-A and EAN-13 are the vinyl-relevant formats
+      detectorRef.current = new window.BarcodeDetector({
+        formats: ['upc_a', 'ean_13', 'ean_8', 'upc_e', 'code_128'],
+      });
+      scanningRef.current = true;
+      scanLoop();
+    } catch (err) {
+      setError(`Camera error: ${err.message || err}. Try manual entry.`);
+      setScanning(false);
+    }
+  }, []);
+
+  const scanLoop = async () => {
+    if (!scanningRef.current || !videoRef.current || !detectorRef.current) return;
+    try {
+      const codes = await detectorRef.current.detect(videoRef.current);
+      if (codes.length > 0) {
+        const now = Date.now();
+        // Debounce: ignore if we just scanned the same code
+        if (now - lastScanRef.current > 1500) {
+          lastScanRef.current = now;
+          const value = codes[0].rawValue;
+          if (navigator.vibrate) navigator.vibrate(100);
+          await handleBarcode(value);
+        }
+      }
+    } catch {
+      // Detection errors are normal mid-frame; just continue
+    }
+    if (scanningRef.current) {
+      requestAnimationFrame(scanLoop);
+    }
+  };
+
+  const handleBarcode = async (barcode) => {
+    setLookingUp(true);
+    setError('');
+    try {
+      const res = await fetch(
+        `${DISCOGS_LOOKUP_URL}?barcode=${encodeURIComponent(barcode)}`,
+        { headers: { 'Authorization': `Bearer ${SUPABASE_ANON}`, 'apikey': SUPABASE_ANON } },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!data.found) {
+        setError(`No Discogs match for barcode ${barcode}. Try manual entry.`);
+        setLookingUp(false);
+        return;
+      }
+      setPreview({ ...data, barcode });
+    } catch (err) {
+      setError(`Lookup failed: ${err.message}`);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const handleManualBarcode = (e) => {
+    e?.preventDefault?.();
+    if (manualBarcode.trim()) handleBarcode(manualBarcode.trim());
+  };
+
+  const saveRecord = async () => {
+    if (!preview) return;
+    const r = preview.record;
+    const { error: e } = await supabase.from('vinyl_inventory').insert({
+      artist:           r.artist,
+      album:            r.album,
+      discogs_id:       r.discogs_id,
+      discogs_url:      r.discogs_url,
+      cover_url:        r.cover_url,
+      year:             r.year,
+      genres:           r.genres,
+      styles:           r.styles,
+      tracklist:        r.tracklist,
+      sides:            r.sides,
+      barcode:          preview.barcode || null,
+      match_confidence: 'confirmed',
+      created_by:       'admin-scan',
+    });
+    if (e) {
+      // Unique constraint hit on discogs_id = already in collection
+      if (e.code === '23505') {
+        setError(`That record (Discogs ID ${r.discogs_id}) is already in the collection.`);
+      } else {
+        setError(`Save failed: ${e.message}`);
+      }
+      return;
+    }
+    setSavedFlash(r.album);
+    setTimeout(() => setSavedFlash(null), 2200);
+    setPreview(null);
+    // Camera is still running — they can scan the next one immediately
+  };
+
+  const rejectAndRescan = () => {
+    setPreview(null);
+    setError('');
+  };
+
+  // Cleanup on unmount
+  useEffect(() => () => stopCamera(), [stopCamera]);
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-4">
+      {savedFlash && (
+        <div className="mb-3 p-3 rounded-lg border border-[var(--hop-deep)] bg-[#6dc13520] text-[var(--hop)] font-mono text-sm">
+          ✓ Saved: {savedFlash}
+        </div>
+      )}
+
+      {!supported && (
+        <div className="mb-4 p-3 rounded-lg border border-[var(--warn)] bg-[#fbbf2410] text-[var(--warn)] text-sm">
+          Your browser doesn't support live barcode scanning. Use Chrome on Android, or
+          enter the barcode manually below. (Safari on iOS supports scanning starting in iOS 17.)
+        </div>
+      )}
+
+      {/* Camera area */}
+      <div className="relative aspect-[3/4] sm:aspect-video bg-black rounded-lg overflow-hidden border border-[var(--line)]">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          className={`w-full h-full object-cover ${scanning ? '' : 'opacity-0'}`}
+        />
+        {!scanning && !preview && (
+          <div className="absolute inset-0 flex items-center justify-center flex-col gap-3 text-center px-6">
+            <VinylSpinner size={64} />
+            <div className="font-display text-2xl text-[var(--text-dim)]">Camera off</div>
+            <div className="text-xs text-[var(--text-faint)] max-w-xs">
+              Point the camera at the barcode on the back of the record sleeve.
+            </div>
+          </div>
+        )}
+        {/* Scan reticle overlay */}
+        {scanning && !lookingUp && !preview && (
+          <>
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-1/3 border-2 border-[var(--hop)] rounded-md shadow-[0_0_24px_var(--hop-glow)]" />
+            </div>
+            <div className="absolute bottom-3 left-0 right-0 text-center font-mono text-[11px] uppercase tracking-wider text-[var(--hop)]">
+              ◉ Looking for a barcode…
+            </div>
+          </>
+        )}
+        {lookingUp && (
+          <div className="absolute inset-0 flex items-center justify-center flex-col gap-3 bg-black/80">
+            <VinylSpinner size={56} />
+            <div className="font-display text-xl text-[var(--hop)]">Looking up…</div>
+          </div>
+        )}
+      </div>
+
+      {/* Camera controls */}
+      <div className="mt-3 flex gap-2">
+        {!scanning ? (
+          <button
+            onClick={startCamera}
+            disabled={!supported}
+            className="flex-1 py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-xl tracking-wider hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-[0_0_24px_var(--hop-glow)]"
+          >
+            Start camera
+          </button>
+        ) : (
+          <button
+            onClick={stopCamera}
+            className="flex-1 py-3 rounded-lg border border-[var(--line)] text-[var(--text-dim)] font-display text-xl tracking-wider hover:border-[var(--text-faint)] transition"
+          >
+            Stop camera
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="mt-3 p-3 rounded-lg border border-red-700 bg-red-900/20 text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Manual barcode entry — works even without camera support */}
+      <form onSubmit={handleManualBarcode} className="mt-4 flex gap-2">
+        <input
+          value={manualBarcode}
+          onChange={(e) => setManualBarcode(e.target.value)}
+          placeholder="Or type barcode manually"
+          inputMode="numeric"
+          className="flex-1 bg-[var(--bg-elev)] border border-[var(--line)] rounded-lg px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)]"
+        />
+        <button
+          type="submit"
+          disabled={!manualBarcode.trim() || lookingUp}
+          className="px-4 py-2 rounded-lg border border-[var(--hop)] text-[var(--hop)] font-display text-lg disabled:opacity-40 hover:bg-[#6dc13520] transition"
+        >
+          Look up
+        </button>
+      </form>
+
+      {/* Preview / confirm */}
+      {preview && (
+        <ScanPreview
+          preview={preview}
+          onSave={saveRecord}
+          onReject={rejectAndRescan}
+        />
+      )}
+    </div>
+  );
+}
+
+function ScanPreview({ preview, onSave, onReject }) {
+  const r = preview.record;
+  return (
+    <div className="mt-4 p-4 rounded-lg border border-[var(--hop)] bg-[var(--bg-elev)] shadow-[0_0_32px_var(--hop-glow)] sheet-anim">
+      <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-[var(--hop)] mb-2">
+        ◉ Match found · barcode {preview.barcode}
+      </div>
+      <div className="flex gap-3">
+        <div className="w-24 sm:w-32 flex-shrink-0">
+          <div className="cover-frame rounded border border-[var(--line)]">
+            <CoverImage src={r.cover_url} alt={`${r.artist} - ${r.album}`} />
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">
+            {r.year || '—'}{r.year && r.genres?.length ? ' · ' : ''}{(r.genres || []).slice(0, 2).join(' · ')}
+          </div>
+          <div className="font-display text-2xl text-[var(--text)] leading-none mt-1">
+            {clean(r.album)}
+          </div>
+          <div className="text-[var(--text-dim)] mt-0.5">{clean(r.artist)}</div>
+          <div className="font-mono text-[10px] text-[var(--text-faint)] mt-2">
+            {r.tracklist?.length || 0} tracks · {r.sides?.length || 0} sides ({(r.sides || []).join('/')})
+          </div>
+          {r.discogs_url && (
+            <a href={r.discogs_url} target="_blank" rel="noopener noreferrer"
+               className="text-[11px] font-mono text-[var(--text-dim)] hover:text-[var(--hop)] underline">
+              View on Discogs ↗
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2 mt-4">
+        <button
+          onClick={onReject}
+          className="flex-1 py-2.5 rounded-lg border border-[var(--line)] text-[var(--text-dim)] font-display text-lg tracking-wider hover:border-red-600 hover:text-red-400 transition"
+        >
+          Wrong record
+        </button>
+        <button
+          onClick={onSave}
+          className="flex-1 py-2.5 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-lg tracking-wider hover:brightness-110 transition"
+        >
+          Save to inventory
+        </button>
+      </div>
+      {preview.alternates?.length > 0 && (
+        <details className="mt-3 text-[12px]">
+          <summary className="cursor-pointer text-[var(--text-faint)] hover:text-[var(--text-dim)]">
+            {preview.alternates.length} other matches
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {preview.alternates.map((a) => (
+              <li key={a.discogs_id} className="text-[var(--text-faint)]">
+                · {a.title} {a.year && `(${a.year})`} {a.country && `· ${a.country}`}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// MANUAL VIEW — for older records without barcodes, or barcode misses
+// ----------------------------------------------------------------------------
+function ManualView() {
+  const [artist, setArtist] = useState('');
+  const [album,  setAlbum]  = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(null);
+
+  const lookup = async (e) => {
+    e?.preventDefault?.();
+    if (!artist.trim() || !album.trim()) {
+      setError('Both artist and album required.');
+      return;
+    }
+    setLookingUp(true);
+    setError('');
+    try {
+      const params = new URLSearchParams({ artist: artist.trim(), album: album.trim() });
+      const res = await fetch(`${DISCOGS_LOOKUP_URL}?${params}`, {
+        headers: { 'Authorization': `Bearer ${SUPABASE_ANON}`, 'apikey': SUPABASE_ANON },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (!data.found) {
+        // Offer to save with no enrichment
+        setPreview({ record: { artist: artist.trim(), album: album.trim() }, found: false });
+      } else {
+        setPreview({ ...data, found: true });
+      }
+    } catch (err) {
+      setError(`Lookup failed: ${err.message}`);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
+  const save = async () => {
+    if (!preview) return;
+    const r = preview.record;
+    const { error: e } = await supabase.from('vinyl_inventory').insert({
+      artist:           r.artist,
+      album:            r.album,
+      discogs_id:       r.discogs_id ?? null,
+      discogs_url:      r.discogs_url ?? null,
+      cover_url:        r.cover_url ?? null,
+      year:             r.year ?? null,
+      genres:           r.genres ?? [],
+      styles:           r.styles ?? [],
+      tracklist:        r.tracklist ?? null,
+      sides:            r.sides ?? [],
+      match_confidence: preview.found ? 'confirmed' : 'unmatched',
+      created_by:       'admin-manual',
+    });
+    if (e) {
+      if (e.code === '23505') {
+        setError(`That Discogs ID is already in the collection.`);
+      } else {
+        setError(`Save failed: ${e.message}`);
+      }
+      return;
+    }
+    setSaved(r.album);
+    setTimeout(() => setSaved(null), 2200);
+    setArtist(''); setAlbum(''); setPreview(null);
+  };
+
+  return (
+    <div className="max-w-xl mx-auto px-4 py-4">
+      {saved && (
+        <div className="mb-3 p-3 rounded-lg border border-[var(--hop-deep)] bg-[#6dc13520] text-[var(--hop)] font-mono text-sm">
+          ✓ Saved: {saved}
+        </div>
+      )}
+
+      <form onSubmit={lookup} className="space-y-3">
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Artist</span>
+          <input
+            value={artist} onChange={(e) => setArtist(e.target.value)}
+            placeholder="e.g. Pink Floyd"
+            className="mt-1 w-full bg-[var(--bg-elev)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)]"
+          />
+        </label>
+        <label className="block">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Album</span>
+          <input
+            value={album} onChange={(e) => setAlbum(e.target.value)}
+            placeholder="e.g. The Dark Side of the Moon"
+            className="mt-1 w-full bg-[var(--bg-elev)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)]"
+          />
+        </label>
+        <button
+          type="submit" disabled={lookingUp}
+          className="w-full py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-xl tracking-wider hover:brightness-110 disabled:opacity-50 transition"
+        >
+          {lookingUp ? 'Looking up…' : 'Look up on Discogs'}
+        </button>
+      </form>
+
+      {error && (
+        <div className="mt-3 p-3 rounded-lg border border-red-700 bg-red-900/20 text-red-300 text-sm">
+          {error}
+        </div>
+      )}
+
+      {preview && preview.found && (
+        <ScanPreview preview={preview} onSave={save} onReject={() => setPreview(null)} />
+      )}
+
+      {preview && !preview.found && (
+        <div className="mt-4 p-4 rounded-lg border border-[var(--warn)] bg-[#fbbf2410] sheet-anim">
+          <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--warn)] mb-2">
+            ◉ No Discogs match
+          </div>
+          <p className="text-sm text-[var(--text-dim)]">
+            Couldn't find <strong className="text-[var(--text)]">{preview.record.artist} — {preview.record.album}</strong> on Discogs.
+            Save it anyway with just the artist and album name? (No cover art or tracklist will appear in the patron view.)
+          </p>
+          <div className="flex gap-2 mt-3">
+            <button onClick={() => setPreview(null)}
+              className="flex-1 py-2 rounded-lg border border-[var(--line)] text-[var(--text-dim)] font-display tracking-wider hover:border-[var(--text-faint)]">
+              Cancel
+            </button>
+            <button onClick={save}
+              className="flex-1 py-2 rounded-lg bg-[var(--warn)] text-[#1a1303] font-display tracking-wider hover:brightness-110">
+              Save anyway
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// INVENTORY VIEW — list, filter, edit status, delete
+// ----------------------------------------------------------------------------
+function InventoryView() {
+  const [items, setItems]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery]     = useState('');
+  const [editing, setEditing] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('vinyl_inventory')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) console.error(error);
+    setItems(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return items;
+    const q = query.toLowerCase();
+    return items.filter((r) =>
+      r.artist?.toLowerCase().includes(q) || r.album?.toLowerCase().includes(q)
+    );
+  }, [items, query]);
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-4">
+      <div className="relative mb-3">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search inventory…"
+          className="w-full bg-[var(--bg-elev)] border border-[var(--line)] rounded-lg px-4 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)]"
+        />
+      </div>
+      <div className="font-mono text-[11px] uppercase tracking-wider text-[var(--text-faint)] mb-3">
+        {loading ? 'Loading…' : `${filtered.length} of ${items.length} records`}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12"><VinylSpinner /></div>
+      ) : (
+        <ul className="space-y-1.5">
+          {filtered.map((r) => (
+            <li key={r.id}
+              className="flex items-center gap-3 p-2 rounded border border-[var(--line)] bg-[var(--bg-elev)] hover:border-[var(--text-faint)] transition">
+              <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-[var(--bg-card)]">
+                <CoverImage src={r.cover_url} alt={r.album} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-[var(--text)] truncate">{clean(r.album)}</div>
+                <div className="text-xs text-[var(--text-dim)] truncate">{clean(r.artist)}{r.year ? ` · ${r.year}` : ''}</div>
+              </div>
+              {r.status && r.status !== 'available' && (
+                <StatusPill status={r.status} />
+              )}
+              <button
+                onClick={() => setEditing(r)}
+                className="font-mono text-[10px] uppercase tracking-wider px-2 py-1 rounded text-[var(--text-dim)] hover:text-[var(--hop)] hover:bg-[#6dc13510]"
+              >
+                Edit
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {editing && <EditRecord record={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+    </div>
+  );
+}
+
+function EditRecord({ record, onClose, onSaved }) {
+  const [status, setStatus] = useState(record.status || 'available');
+  const [notes,  setNotes]  = useState(record.notes || '');
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState('');
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    const { error: e } = await supabase
+      .from('vinyl_inventory')
+      .update({ status, notes: notes.trim() || null })
+      .eq('id', record.id);
+    setSaving(false);
+    if (e) { setError(e.message); return; }
+    onSaved();
+  };
+
+  const remove = async () => {
+    if (!confirm(`Remove "${record.album}" by ${record.artist} from the collection?`)) return;
+    setSaving(true);
+    const { error: e } = await supabase.from('vinyl_inventory').delete().eq('id', record.id);
+    setSaving(false);
+    if (e) { setError(e.message); return; }
+    onSaved();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center scrim-anim"
+      style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet-anim bg-[var(--bg-elev)] border-t sm:border border-[var(--line)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md p-5 safe-bottom">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden">
+            <CoverImage src={record.cover_url} alt={record.album} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-xl text-[var(--text)] leading-none">{clean(record.album)}</div>
+            <div className="text-sm text-[var(--text-dim)] mt-1">{clean(record.artist)}</div>
+          </div>
+          <button onClick={onClose} className="text-[var(--text-dim)] hover:text-[var(--text)] text-2xl leading-none">×</button>
+        </div>
+
+        <label className="block mb-3">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Status</span>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}
+            className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] focus:outline-none focus:border-[var(--hop)]">
+            <option value="available">Available</option>
+            <option value="playing">On the deck</option>
+            <option value="featured">★ Featured</option>
+            <option value="damaged">Damaged</option>
+            <option value="missing">Missing</option>
+          </select>
+        </label>
+
+        <label className="block mb-4">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Staff notes</span>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
+            placeholder="Bin location, condition, etc."
+            className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] resize-none" />
+        </label>
+
+        {error && <div className="text-sm text-red-400 mb-3">{error}</div>}
+
+        <div className="flex gap-2">
+          <button onClick={remove} disabled={saving}
+            className="px-3 py-2 rounded-lg border border-red-800 text-red-400 font-mono text-[11px] uppercase tracking-wider hover:bg-red-900/20 disabled:opacity-50">
+            Delete
+          </button>
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg border border-[var(--line)] text-[var(--text-dim)] font-display tracking-wider">
+            Cancel
+          </button>
+          <button onClick={save} disabled={saving}
+            className="flex-1 py-2 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display tracking-wider hover:brightness-110 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// WISHLIST ADMIN VIEW — promote to "ordered", mark "acquired", or decline
+// ----------------------------------------------------------------------------
+function WishlistAdminView() {
+  const [items, setItems]     = useState([]);
+  const [subscribers, setSubscribers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView]       = useState('requests'); // 'requests' | 'subscribers'
+  const [copyFlash, setCopyFlash] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const [{ data: w, error: e1 }, { data: s, error: e2 }] = await Promise.all([
+      supabase.from('vinyl_wishlist').select('*').order('vote_count', { ascending: false }),
+      supabase.from('email_subscribers').select('*').order('subscribed_at', { ascending: false }),
+    ]);
+    if (e1) console.error(e1);
+    if (e2) console.error(e2);
+    setItems(w || []);
+    setSubscribers(s || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setStatus = async (item, status) => {
+    const { error } = await supabase.from('vinyl_wishlist').update({ status }).eq('id', item.id);
+    if (error) { alert(error.message); return; }
+    load();
+  };
+
+  const markNotified = async (item) => {
+    const { error } = await supabase.from('vinyl_wishlist').update({ notified_at: new Date().toISOString() }).eq('id', item.id);
+    if (error) { alert(error.message); return; }
+    load();
+  };
+
+  const unsubscribe = async (sub) => {
+    if (!confirm(`Unsubscribe ${sub.email}?`)) return;
+    const { error } = await supabase
+      .from('email_subscribers')
+      .update({ unsubscribed_at: new Date().toISOString() })
+      .eq('email', sub.email);
+    if (error) { alert(error.message); return; }
+    load();
+  };
+
+  const copyToClipboard = async (text, label) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyFlash(label);
+      setTimeout(() => setCopyFlash(null), 1800);
+    } catch {
+      // Fallback: select + execCommand for older browsers
+      alert(`Copy this:\n\n${text}`);
+    }
+  };
+
+  // Aggregate "people to notify when a given record arrives" across all
+  // wishlist requests for the same artist+album (in case multiple patrons
+  // requested the same record separately).
+  const notifyEmailsFor = (item) => {
+    const key = `${item.artist}|${item.album}`.toLowerCase();
+    return [...new Set(
+      items
+        .filter((r) => `${r.artist}|${r.album}`.toLowerCase() === key)
+        .filter((r) => r.notify_on_acquired && r.submitter_email)
+        .map((r) => r.submitter_email)
+    )];
+  };
+
+  const allActiveSubscribers = subscribers.filter((s) => !s.unsubscribed_at);
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-4">
+      {copyFlash && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-mono text-sm shadow-[0_0_24px_var(--hop-glow)] sheet-anim">
+          ✓ Copied {copyFlash}
+        </div>
+      )}
+
+      {/* Sub-tabs */}
+      <div className="flex items-center gap-2 mb-4 border-b border-[var(--line)] -mx-4 px-4">
+        <button
+          onClick={() => setView('requests')}
+          className={`font-display text-base pb-2 px-1 transition-colors ${
+            view === 'requests' ? 'tab-active' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+          }`}>
+          Requests <span className="text-[var(--text-faint)] text-xs">({items.length})</span>
+        </button>
+        <button
+          onClick={() => setView('subscribers')}
+          className={`font-display text-base pb-2 px-1 transition-colors ${
+            view === 'subscribers' ? 'tab-active' : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+          }`}>
+          Newsletter <span className="text-[var(--text-faint)] text-xs">({allActiveSubscribers.length})</span>
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12"><VinylSpinner /></div>
+      ) : view === 'requests' ? (
+        items.length === 0 ? (
+          <div className="text-center text-[var(--text-faint)] py-12">No wishlist items yet.</div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  const csv = buildCsv(items, [
+                    ['artist',               'artist'],
+                    ['album',                'album'],
+                    ['vote_count',           'votes'],
+                    ['status',               'status'],
+                    ['submitter_email',      'email'],
+                    ['submitted_by',         'submitted_by'],
+                    ['note',                 'note'],
+                    ['notify_on_acquired',   'notify_on_acquired'],
+                    ['subscribe_newsletter', 'subscribe_newsletter'],
+                    ['notified_at',          'notified_at'],
+                    ['created_at',           'created_at'],
+                  ]);
+                  downloadFile(`igb-wishlist-${ymd()}.csv`, csv);
+                }}
+                className="text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border border-[var(--hop)] text-[var(--hop)] hover:bg-[#6dc13510]">
+                ↓ Export wishlist CSV ({items.length})
+              </button>
+              <span className="text-[11px] font-mono text-[var(--text-faint)]">
+                · everything below as a spreadsheet
+              </span>
+            </div>
+            <ul className="space-y-2">
+              {items.map((it) => {
+                const notifyEmails = notifyEmailsFor(it);
+                return (
+                  <li key={it.id} className="p-3 rounded-lg border border-[var(--line)] bg-[var(--bg-elev)]">
+                    <div className="flex items-start gap-3">
+                    <div className="font-display text-2xl text-[var(--hop)] leading-none w-10 text-center">{it.vote_count}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-[var(--text)]">{clean(it.album)}</div>
+                      <div className="text-sm text-[var(--text-dim)]">{clean(it.artist)}</div>
+                      {it.note && <div className="text-[11px] italic text-[var(--text-faint)] mt-1">"{it.note}"{it.submitted_by ? ` — ${it.submitted_by}` : ''}</div>}
+                      {/* Submitter contact info */}
+                      {(it.submitter_email || it.notify_on_acquired) && (
+                        <div className="mt-2 p-2 rounded bg-[var(--bg)] border border-[var(--line)] text-[11px] font-mono">
+                          {it.submitter_email && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[var(--text-faint)]">✉</span>
+                              <span className="text-[var(--text-dim)] truncate">{it.submitter_email}</span>
+                              <button
+                                onClick={() => copyToClipboard(it.submitter_email, 'email')}
+                                className="ml-auto text-[var(--text-faint)] hover:text-[var(--hop)]"
+                                aria-label="Copy email"
+                              >Copy</button>
+                            </div>
+                          )}
+                          <div className="flex gap-3 mt-1 text-[10px] uppercase tracking-wider">
+                            {it.notify_on_acquired && (
+                              <span className={it.notified_at ? 'text-[var(--text-faint)] line-through' : 'text-[var(--hop)]'}>
+                                ◉ wants notification
+                                {it.notified_at && ' · sent'}
+                              </span>
+                            )}
+                            {it.subscribe_newsletter && (
+                              <span className="text-[var(--hop)]">◉ newsletter</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <div className="font-mono text-[10px] uppercase tracking-wider mt-2">
+                        Status: <span className="text-[var(--text-dim)]">{it.status}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notify-list shortcut: when status is acquired and there are emails to notify */}
+                  {it.status === 'acquired' && notifyEmails.length > 0 && !it.notified_at && (
+                    <div className="mt-3 p-2 rounded border border-[var(--hop-deep)] bg-[#6dc1350a]">
+                      <div className="text-[11px] font-mono text-[var(--hop)] mb-1.5">
+                        ✦ {notifyEmails.length} {notifyEmails.length === 1 ? 'person wants' : 'people want'} to know this arrived
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => copyToClipboard(notifyEmails.join(', '), `${notifyEmails.length} email${notifyEmails.length === 1 ? '' : 's'}`)}
+                          className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded bg-[var(--hop)] text-[#0a1a02]">
+                          Copy emails for bcc
+                        </button>
+                        <a
+                          href={`mailto:?bcc=${encodeURIComponent(notifyEmails.join(','))}&subject=${encodeURIComponent(`Inner Groove: "${it.album}" is in the collection!`)}&body=${encodeURIComponent(`Hey — you asked us to grab ${it.artist} - ${it.album} for the brewery. It's in! Come spin it next time you're in.\n\n— Inner Groove`)}`}
+                          className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--hop)] text-[var(--hop)] hover:bg-[#6dc13510]">
+                          Open in mail
+                        </a>
+                        <button
+                          onClick={() => markNotified(it)}
+                          className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)]">
+                          Mark sent
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    {it.status !== 'open' && (
+                      <button onClick={() => setStatus(it, 'open')}
+                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)]">
+                        Reopen
+                      </button>
+                    )}
+                    {it.status !== 'ordered' && (
+                      <button onClick={() => setStatus(it, 'ordered')}
+                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--warn)] text-[var(--warn)] hover:bg-[#fbbf2410]">
+                        Mark ordered
+                      </button>
+                    )}
+                    {it.status !== 'acquired' && (
+                      <button onClick={() => setStatus(it, 'acquired')}
+                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--hop)] text-[var(--hop)] hover:bg-[#6dc13510]">
+                        Mark acquired
+                      </button>
+                    )}
+                    {it.status !== 'declined' && (
+                      <button onClick={() => setStatus(it, 'declined')}
+                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-red-800 text-red-400 hover:bg-red-900/10">
+                        Decline
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+            </ul>
+          </>
+        )
+      ) : (
+        // Newsletter subscribers view
+        <div>
+          {allActiveSubscribers.length === 0 ? (
+            <div className="text-center text-[var(--text-faint)] py-12">No newsletter subscribers yet.</div>
+          ) : (
+            <>
+              <div className="mb-3 flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => copyToClipboard(
+                    allActiveSubscribers.map((s) => s.email).join(', '),
+                    `${allActiveSubscribers.length} email${allActiveSubscribers.length === 1 ? '' : 's'}`
+                  )}
+                  className="text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 rounded bg-[var(--hop)] text-[#0a1a02]">
+                  Copy all {allActiveSubscribers.length} emails
+                </button>
+                <button
+                  onClick={() => {
+                    const csv = buildCsv(subscribers, [
+                      ['email',           'email'],
+                      ['source',          'source'],
+                      ['subscribed_at',   'subscribed_at'],
+                      ['unsubscribed_at', 'unsubscribed_at'],
+                      ['notes',           'notes'],
+                    ]);
+                    downloadFile(`igb-newsletter-${ymd()}.csv`, csv);
+                  }}
+                  className="text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border border-[var(--hop)] text-[var(--hop)] hover:bg-[#6dc13510]">
+                  ↓ Export CSV ({subscribers.length})
+                </button>
+                <span className="text-[11px] font-mono text-[var(--text-faint)]">
+                  · paste into bcc, or import to Mailchimp
+                </span>
+              </div>
+              <ul className="space-y-1.5">
+                {subscribers.map((s) => (
+                  <li key={s.email}
+                    className={`flex items-center gap-2 p-2 rounded border ${
+                      s.unsubscribed_at ? 'border-[var(--line)] opacity-50' : 'border-[var(--line)] bg-[var(--bg-elev)]'
+                    }`}>
+                    <span className="font-mono text-sm text-[var(--text)] flex-1 truncate">{s.email}</span>
+                    <span className="font-mono text-[10px] text-[var(--text-faint)] uppercase tracking-wider">
+                      {s.unsubscribed_at ? 'unsub' : new Date(s.subscribed_at).toLocaleDateString()}
+                    </span>
+                    {!s.unsubscribed_at && (
+                      <button onClick={() => unsubscribe(s)}
+                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded text-[var(--text-faint)] hover:text-red-400">
+                        Unsub
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-[10px] text-[var(--text-faint)] leading-relaxed">
+                Subscribers come from the wishlist newsletter checkbox. Use the
+                "Copy all" button to grab the list and paste into bcc when sending
+                from your email client. (No automated sending from here yet.)
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// ADMIN APP SHELL
+// ----------------------------------------------------------------------------
+function AdminApp() {
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return sessionStorage.getItem('igb_vinyl_admin_unlocked') === '1'; }
+    catch { return false; }
+  });
+  const [view, setView] = useState('scan');
+
+  if (!unlocked) return <PinGate onUnlock={() => setUnlocked(true)} />;
+
+  return (
+    <>
+      <AdminHeader view={view} setView={setView} />
+      {view === 'scan'      && <ScanView />}
+      {view === 'manual'    && <ManualView />}
+      {view === 'inventory' && <InventoryView />}
+      {view === 'wishlist'  && <WishlistAdminView />}
+      <footer className="max-w-3xl mx-auto px-4 py-8 text-center font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-faint)]">
+        Inner Groove Brewing · Staff Console
+      </footer>
+    </>
+  );
+}
+
+// ============================================================================
+// APP SHELL
+// ============================================================================
+function App() {
+  const [tab, setTab]             = useState('browse');
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const queueEnabled              = useQueueEnabled();
+
+  // Load inventory once on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Pagination is unnecessary at 170 rows but future-proofs it
+      const { data, error } = await supabase
+        .from('vinyl_inventory')
+        .select('id, artist, album, year, genres, styles, cover_url, discogs_url, tracklist, sides, status, created_at')
+        .order('artist', { ascending: true });
+      if (!cancelled) {
+        if (error) console.error(error);
+        setInventory(data || []);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <>
+      <Header tab={tab} setTab={setTab} />
+      {tab === 'browse'   && <BrowseTab inventory={inventory} loading={loading} queueEnabled={queueEnabled} />}
+      {tab === 'wishlist' && <WishlistTab />}
+      <footer className="max-w-5xl mx-auto px-4 py-8 text-center font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-faint)]">
+        Inner Groove Brewing · Verona, PA
+      </footer>
+    </>
+  );
+}
+
+// ============================================================================
+// PLAY QUEUE — shared hooks + components
+// ============================================================================
+
+/** Read the queue on/off flag from app_settings, live. */
+function useQueueEnabled() {
+  const [enabled, setEnabled] = useState(null); // null = loading
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'vinyl_queue_enabled')
+      .single();
+    if (error) { console.error(error); setEnabled(false); return; }
+    setEnabled(data?.value === true || data?.value === 'true');
+  }, []);
+
+  useEffect(() => {
+    load();
+    const ch = supabase
+      .channel('app_settings_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [load]);
+
+  return enabled;
+}
+
+/** Read the live play queue (queued + playing), newest activity first. */
+function usePlayQueue() {
+  const [queue, setQueue] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('vinyl_play_queue')
+      .select('*')
+      .in('status', ['queued', 'playing'])
+      .order('created_at', { ascending: true });
+    if (error) console.error(error);
+    setQueue(data || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+    const ch = supabase
+      .channel('play_queue_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vinyl_play_queue' }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [load]);
+
+  // Sort: playing first, then queued by creation time
+  const sorted = useMemo(() => {
+    const order = { playing: 0, queued: 1 };
+    return [...queue].sort((a, b) => {
+      const d = (order[a.status] ?? 9) - (order[b.status] ?? 9);
+      if (d !== 0) return d;
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
+  }, [queue]);
+
+  return { queue: sorted, loading, reload: load };
+}
+
+// ----------------------------------------------------------------------------
+// REQUEST-TO-PLAY MODAL (patron) — pick side + name
+// ----------------------------------------------------------------------------
+function RequestToPlayModal({ record, onClose, onRequested }) {
+  const sides = (record.sides && record.sides.length) ? record.sides : ['A', 'B'];
+  const [side, setSide] = useState(sides[0]);
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const submit = async () => {
+    setErr('');
+    if (!name.trim()) { setErr('Add your first name so we can call it out.'); return; }
+    setSubmitting(true);
+    const { error } = await supabase.from('vinyl_play_queue').insert({
+      inventory_id: record.id,
+      artist:       record.artist,
+      album:        record.album,
+      cover_url:    record.cover_url,
+      side:         side,
+      requested_by: name.trim(),
+    });
+    setSubmitting(false);
+    if (error) { console.error(error); setErr('Could not add to the queue. Try again?'); return; }
+    onRequested?.();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center scrim-anim"
+      style={{ background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="sheet-anim bg-[var(--bg-elev)] border-t sm:border border-[var(--line)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 safe-bottom">
+        <div className="flex items-start gap-3 mb-4">
+          <div className="w-16 h-16 flex-shrink-0 rounded overflow-hidden">
+            <CoverImage src={record.cover_url} alt={record.album} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-display text-xl text-[var(--text)] leading-none">{clean(record.album)}</div>
+            <div className="text-sm text-[var(--text-dim)] mt-0.5">{clean(record.artist)}</div>
+          </div>
+          <button onClick={onClose} className="text-[var(--text-dim)] hover:text-[var(--text)] text-2xl leading-none">×</button>
+        </div>
+
+        <div className="mb-4">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Which side?</span>
+          <div className="flex gap-2 mt-2 flex-wrap">
+            {sides.map((s) => (
+              <button key={s} onClick={() => setSide(s)}
+                className={`w-12 h-12 rounded-full font-display text-xl transition ${
+                  side === s
+                    ? 'bg-[var(--hop)] text-[#0a1a02] shadow-[0_0_16px_var(--hop-glow)]'
+                    : 'border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--hop)]'
+                }`}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="block mb-4">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)]">Your first name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Sarah"
+            maxLength={24}
+            className="mt-1 w-full bg-[var(--bg)] border border-[var(--line)] rounded-md px-3 py-2 text-[var(--text)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--hop)] focus:ring-1 focus:ring-[var(--hop)]"
+          />
+        </label>
+
+        {err && <div className="text-sm text-red-400 mb-3">{err}</div>}
+
+        <button onClick={submit} disabled={submitting}
+          className="w-full py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-xl tracking-wider hover:brightness-110 disabled:opacity-50 transition shadow-[0_0_20px_var(--hop-glow)]">
+          {submitting ? 'Adding…' : `Request Side ${side}`}
+        </button>
+        <p className="mt-3 text-[10px] text-[var(--text-faint)] leading-relaxed text-center">
+          You can also drop a paper slip at the bar. The bartender plays from the queue when they can.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// DISPLAY APP — the taproom TV (/display)
+// ----------------------------------------------------------------------------
+function DisplayApp() {
+  const queueEnabled = useQueueEnabled();
+  const { queue } = usePlayQueue();
+  const [slides, setSlides] = useState([]);
+  const [slideIdx, setSlideIdx] = useState(0);
+  const [flash, setFlash] = useState(false);
+  const prevCountRef = useRef(0);
+
+  // Load slides (will be empty until Drop 2 sync runs — placeholder shows)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('display_slides')
+        .select('*')
+        .eq('active', true)
+        .order('sort_order', { ascending: true });
+      if (!cancelled) setSlides(data || []);
+    })();
+    const ch = supabase
+      .channel('slides_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'display_slides' }, async () => {
+        const { data } = await supabase.from('display_slides').select('*').eq('active', true).order('sort_order', { ascending: true });
+        setSlides(data || []);
+      })
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, []);
+
+  // Advance slides every 8s
+  useEffect(() => {
+    if (slides.length === 0) return;
+    const t = setInterval(() => setSlideIdx((i) => (i + 1) % slides.length), 8000);
+    return () => clearInterval(t);
+  }, [slides.length]);
+
+  // Flash the queue panel when a new item is added
+  useEffect(() => {
+    const queuedCount = queue.filter((q) => q.status === 'queued').length;
+    if (queuedCount > prevCountRef.current && prevCountRef.current !== 0) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 2400);
+      return () => clearTimeout(t);
+    }
+    prevCountRef.current = queuedCount;
+  }, [queue]);
+
+  const showQueue = queueEnabled === true;
+
+  return (
+    <div className="fixed inset-0 bg-[var(--bg)] flex overflow-hidden">
+      {/* Slides panel */}
+      <div className={`relative h-full transition-all duration-700 ${showQueue ? 'w-2/3' : 'w-full'}`}>
+        {slides.length > 0 ? (
+          slides.map((s, i) => (
+            <img key={s.id} src={s.public_url} alt=""
+              className="absolute inset-0 w-full h-full object-contain bg-black transition-opacity duration-1000"
+              style={{ opacity: i === slideIdx ? 1 : 0 }} />
+          ))
+        ) : (
+          // Placeholder until Drop 2 wires in real slides
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-6">
+            <VinylSpinner size={140} />
+            <div className="text-center">
+              <div className="font-display text-5xl glow-pulse">Inner Groove Brewing</div>
+              <div className="font-mono text-sm tracking-[0.3em] uppercase text-[var(--text-faint)] mt-2">
+                Verona · PA
+              </div>
+            </div>
+            <div className="font-mono text-[11px] tracking-[0.2em] uppercase text-[var(--text-faint)] absolute bottom-8">
+              slides go here
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Queue panel */}
+      {showQueue && (
+        <div className={`relative h-full w-1/3 border-l-2 flex flex-col transition-all duration-300 ${
+          flash ? 'border-[var(--hop)]' : 'border-[var(--line)]'
+        }`}
+          style={flash ? { boxShadow: 'inset 0 0 80px var(--hop-glow)' } : {}}>
+          <DisplayQueuePanel queue={queue} flash={flash} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DisplayQueuePanel({ queue, flash }) {
+  const playing = queue.find((q) => q.status === 'playing');
+  const upNext  = queue.filter((q) => q.status === 'queued');
+
+  return (
+    <div className="flex flex-col h-full bg-[var(--bg-elev)]">
+      {/* Header */}
+      <div className="px-6 pt-6 pb-4 border-b border-[var(--line)]">
+        <div className="font-mono text-[11px] tracking-[0.3em] uppercase text-[var(--text-faint)]">
+          Inner Groove · Now Spinning
+        </div>
+        <h1 className={`font-display text-4xl leading-none mt-1 ${flash ? 'glow-pulse' : 'text-[var(--hop)]'}`}>
+          The Queue
+        </h1>
+      </div>
+
+      {/* Now playing */}
+      <div className="px-6 py-5 border-b border-[var(--line)]">
+        <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--hop)] mb-2">
+          ◉ On the deck
+        </div>
+        {playing ? (
+          <div className="flex items-center gap-3">
+            <div className="w-20 h-20 flex-shrink-0 rounded overflow-hidden shadow-[0_0_24px_var(--hop-glow)]">
+              <CoverImage src={playing.cover_url} alt={playing.album} />
+            </div>
+            <div className="min-w-0">
+              <div className="font-display text-2xl text-[var(--text)] leading-none truncate">{clean(playing.album)}</div>
+              <div className="text-[var(--text-dim)] truncate">{clean(playing.artist)}</div>
+              <div className="font-mono text-xs text-[var(--hop)] mt-1">
+                {playing.side ? `SIDE ${playing.side}` : ''}{playing.requested_by ? ` · for ${playing.requested_by}` : ''}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-[var(--text-faint)] text-sm italic">Nothing playing right now</div>
+        )}
+      </div>
+
+      {/* Up next */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--text-faint)] mb-3">
+          Up next · {upNext.length}
+        </div>
+        {upNext.length === 0 ? (
+          <div className="text-[var(--text-faint)] text-sm italic">
+            Queue's open — scan the QR on your table to request a record.
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {upNext.map((q, i) => (
+              <li key={q.id} className={`flex items-center gap-3 ${i === 0 && flash ? 'fade-rise' : ''}`}>
+                <div className="font-display text-2xl text-[var(--text-faint)] w-7 text-center tabular-nums">{i + 1}</div>
+                <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden">
+                  <CoverImage src={q.cover_url} alt={q.album} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-[var(--text)] leading-tight truncate">{clean(q.album)}</div>
+                  <div className="text-sm text-[var(--text-dim)] leading-tight truncate">{clean(q.artist)}</div>
+                  <div className="font-mono text-[10px] text-[var(--text-faint)] mt-0.5">
+                    {q.side ? `SIDE ${q.side}` : ''}{q.requested_by ? ` · ${q.requested_by}` : ''}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-6 py-3 border-t border-[var(--line)] text-center">
+        <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-faint)]">
+          Request a record · inner-groove-vinyl.vercel.app
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// BAR APP — bartender queue manager (/bar), no PIN
+// ----------------------------------------------------------------------------
+function BarApp() {
+  const queueEnabled = useQueueEnabled();
+  const { queue, reload } = usePlayQueue();
+  const [history, setHistory] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  // Load recently-played for context
+  const loadHistory = useCallback(async () => {
+    const { data } = await supabase
+      .from('vinyl_play_queue')
+      .select('*')
+      .in('status', ['done', 'skipped'])
+      .order('played_at', { ascending: false })
+      .limit(8);
+    setHistory(data || []);
+  }, []);
+  useEffect(() => { loadHistory(); }, [loadHistory, queue]);
+
+  const toggleQueue = async () => {
+    setBusy(true);
+    const next = !(queueEnabled === true);
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: next })
+      .eq('key', 'vinyl_queue_enabled');
+    setBusy(false);
+    if (error) alert(error.message);
+  };
+
+  const setStatus = async (item, status) => {
+    const patch = { status };
+    if (status === 'playing' || status === 'done') patch.played_at = new Date().toISOString();
+    const { error } = await supabase.from('vinyl_play_queue').update(patch).eq('id', item.id);
+    if (error) { alert(error.message); return; }
+    reload();
+  };
+
+  const clearDone = async () => {
+    if (!confirm('Clear all played/skipped items from history?')) return;
+    await supabase.from('vinyl_play_queue').delete().in('status', ['done', 'skipped']);
+    loadHistory();
+  };
+
+  const playing = queue.find((q) => q.status === 'playing');
+  const upNext  = queue.filter((q) => q.status === 'queued');
+
+  return (
+    <div className="min-h-screen bg-[var(--bg)]">
+      <header className="sticky top-0 z-40 bg-[var(--bg)]/90 backdrop-blur-md border-b border-[var(--line)]">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--text-faint)]">
+            IGB · Bartender
+          </div>
+          <h1 className="font-display text-3xl glow-pulse leading-none">Vinyl Queue</h1>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 py-4">
+        {/* Master toggle */}
+        <button
+          onClick={toggleQueue}
+          disabled={busy || queueEnabled === null}
+          className={`w-full mb-5 py-4 rounded-xl font-display text-2xl tracking-wider transition ${
+            queueEnabled === true
+              ? 'bg-[var(--hop)] text-[#0a1a02] shadow-[0_0_28px_var(--hop-glow)]'
+              : 'border-2 border-[var(--line)] text-[var(--text-dim)]'
+          }`}>
+          {queueEnabled === null ? 'Loading…' : queueEnabled ? '● QUEUE IS ON — tap to turn off' : '○ QUEUE IS OFF — tap to turn on'}
+        </button>
+
+        {queueEnabled === false && (
+          <div className="mb-5 p-3 rounded-lg border border-[var(--line)] text-[var(--text-faint)] text-sm text-center">
+            While off: the TV shows slides full-screen and patrons can't add requests.
+          </div>
+        )}
+
+        {/* Now playing */}
+        <div className="mb-5">
+          <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--hop)] mb-2">◉ On the deck</div>
+          {playing ? (
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--hop-deep)] bg-[#6dc1350a]">
+              <div className="w-14 h-14 flex-shrink-0 rounded overflow-hidden">
+                <CoverImage src={playing.cover_url} alt={playing.album} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-[var(--text)] truncate">{clean(playing.album)}</div>
+                <div className="text-sm text-[var(--text-dim)] truncate">{clean(playing.artist)}</div>
+                <div className="font-mono text-[10px] text-[var(--hop)] mt-0.5">
+                  {playing.side ? `SIDE ${playing.side}` : ''}{playing.requested_by ? ` · for ${playing.requested_by}` : ''}
+                </div>
+              </div>
+              <button onClick={() => setStatus(playing, 'done')}
+                className="px-5 py-3 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-lg tracking-wider active:brightness-90">
+                Done
+              </button>
+            </div>
+          ) : (
+            <div className="text-[var(--text-faint)] text-sm italic p-3 border border-dashed border-[var(--line)] rounded-lg text-center">
+              Nothing on the deck. Tap "Play" on a queued record below.
+            </div>
+          )}
+        </div>
+
+        {/* Up next */}
+        <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--text-faint)] mb-2">
+          Up next · {upNext.length}
+        </div>
+        {upNext.length === 0 ? (
+          <div className="text-[var(--text-faint)] text-sm italic py-6 text-center">No requests in the queue.</div>
+        ) : (
+          <ul className="space-y-2">
+            {upNext.map((q, i) => (
+              <li key={q.id} className="flex items-center gap-3 p-3 rounded-lg border border-[var(--line)] bg-[var(--bg-elev)]">
+                <div className="font-display text-2xl text-[var(--text-faint)] w-7 text-center tabular-nums">{i + 1}</div>
+                <div className="w-14 h-14 flex-shrink-0 rounded overflow-hidden">
+                  <CoverImage src={q.cover_url} alt={q.album} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-[var(--text)] text-sm truncate">{clean(q.album)}</div>
+                  <div className="text-xs text-[var(--text-dim)] truncate">{clean(q.artist)}</div>
+                  <div className="font-mono text-[10px] text-[var(--text-faint)] mt-0.5">
+                    {q.side ? `SIDE ${q.side}` : ''}{q.requested_by ? ` · ${q.requested_by}` : ''}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <button onClick={() => setStatus(q, 'playing')}
+                    className="px-4 py-2.5 rounded-lg bg-[var(--hop)] text-[#0a1a02] font-display text-base tracking-wide active:brightness-90">
+                    Play
+                  </button>
+                  <button onClick={() => setStatus(q, 'skipped')}
+                    className="px-4 py-1.5 rounded-lg border border-[var(--line)] text-[var(--text-faint)] font-mono text-[10px] uppercase tracking-wider active:border-red-700 active:text-red-400">
+                    Skip
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* History */}
+        {history.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--text-faint)]">Recently played</div>
+              <button onClick={clearDone} className="font-mono text-[10px] uppercase tracking-wider text-[var(--text-faint)] hover:text-red-400">Clear</button>
+            </div>
+            <ul className="space-y-1">
+              {history.map((h) => (
+                <li key={h.id} className="flex items-center gap-2 text-xs text-[var(--text-faint)] py-1">
+                  <span className={`font-mono text-[9px] uppercase ${h.status === 'skipped' ? 'text-red-500/70' : 'text-[var(--hop)]/70'}`}>
+                    {h.status === 'skipped' ? 'skip' : 'done'}
+                  </span>
+                  <span className="truncate">{clean(h.album)} — {clean(h.artist)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// Route based on URL path. Vercel rewrites /admin → /index.html so we can
+// inspect window.location.pathname to decide which app to render.
+const path = window.location.pathname.replace(/\/$/, '');
+let RootComponent;
+if (path === '/admin')        RootComponent = AdminApp;
+else if (path === '/display') RootComponent = DisplayApp;
+else if (path === '/bar')     RootComponent = BarApp;
+else                          RootComponent = App;
+root.render(<RootComponent />);
+</script>
+</body>
+</html>
