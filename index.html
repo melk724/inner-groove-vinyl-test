@@ -154,6 +154,26 @@
   }
   .vote-bump { animation: vote-bump 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
 
+  /* Full-panel flash for the display queue when a new request lands.
+     Pulses a hop-green wash across the whole panel a few times. */
+  @keyframes queue-flash {
+    0%, 100% { background-color: var(--bg-elev); }
+    15%      { background-color: #6dc135; }
+    30%      { background-color: var(--bg-elev); }
+    45%      { background-color: #6dc135; }
+    60%      { background-color: var(--bg-elev); }
+    75%      { background-color: #6dc135cc; }
+  }
+  .queue-flash {
+    animation: queue-flash 2.2s ease-in-out;
+  }
+  /* When flashing, make the panel text pop against the green wash */
+  @keyframes queue-flash-glow {
+    0%, 100% { box-shadow: inset 0 0 0 var(--hop-glow); }
+    50%      { box-shadow: inset 0 0 120px #6dc135, 0 0 60px var(--hop-glow); }
+  }
+  .queue-flash-glow { animation: queue-flash-glow 2.2s ease-in-out; }
+
   /* Hide elements outside the safe area on iPhone */
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
@@ -175,11 +195,11 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 // ============================================================================
 // CONFIG — these are PUBLIC values; safe to ship in the frontend
 // ============================================================================
-const SUPABASE_URL  = 'https://gyrfthjhacvoyhfilnjc.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5cmZ0aGpoYWN2b3loZmlsbmpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTE1MjMsImV4cCI6MjA4ODU4NzUyM30.cI2df-xYe2X-LzC2L4mrtbuhWasAR7tAEOi9qSY9_rM';
+const SUPABASE_URL  = 'REPLACE_WITH_YOUR_SUPABASE_URL';
+const SUPABASE_ANON = 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';
 
 // Admin route config — only used on /admin
-const ADMIN_PIN          = '15147';
+const ADMIN_PIN          = 'REPLACE_WITH_YOUR_PIN';
 const DISCOGS_LOOKUP_URL = `${SUPABASE_URL}/functions/v1/discogs-lookup`;
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
@@ -2408,7 +2428,7 @@ function DisplayApp() {
   return (
     <div className="fixed inset-0 bg-[var(--bg)] flex overflow-hidden">
       {/* Slides panel */}
-      <div className={`relative h-full transition-all duration-700 ${showQueue ? 'w-2/3' : 'w-full'}`}>
+      <div className={`relative h-full transition-all duration-700 ${showQueue ? 'w-3/4' : 'w-full'}`}>
         {slides.length > 0 ? (
           slides.map((s, i) => (
             <img key={s.id} src={s.public_url} alt=""
@@ -2434,10 +2454,9 @@ function DisplayApp() {
 
       {/* Queue panel */}
       {showQueue && (
-        <div className={`relative h-full w-1/3 border-l-2 flex flex-col transition-all duration-300 ${
-          flash ? 'border-[var(--hop)]' : 'border-[var(--line)]'
-        }`}
-          style={flash ? { boxShadow: 'inset 0 0 80px var(--hop-glow)' } : {}}>
+        <div className={`relative h-full w-1/4 border-l-2 flex flex-col transition-all duration-300 ${
+          flash ? 'border-[var(--hop)] queue-flash-glow' : 'border-[var(--line)]'
+        }`}>
           <DisplayQueuePanel queue={queue} flash={flash} />
         </div>
       )}
@@ -2450,19 +2469,19 @@ function DisplayQueuePanel({ queue, flash }) {
   const upNext  = queue.filter((q) => q.status === 'queued');
 
   return (
-    <div className="flex flex-col h-full bg-[var(--bg-elev)]">
+    <div className={`flex flex-col h-full bg-[var(--bg-elev)] ${flash ? 'queue-flash' : ''}`}>
       {/* Header */}
-      <div className="px-6 pt-6 pb-4 border-b border-[var(--line)]">
-        <div className="font-mono text-[11px] tracking-[0.3em] uppercase text-[var(--text-faint)]">
+      <div className="px-5 pt-5 pb-3 border-b border-[var(--line)]">
+        <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--text-faint)]">
           Inner Groove · Now Spinning
         </div>
-        <h1 className={`font-display text-4xl leading-none mt-1 ${flash ? 'glow-pulse' : 'text-[var(--hop)]'}`}>
+        <h1 className={`font-display text-3xl leading-none mt-1 ${flash ? 'glow-pulse' : 'text-[var(--hop)]'}`}>
           The Queue
         </h1>
       </div>
 
       {/* Now playing */}
-      <div className="px-6 py-5 border-b border-[var(--line)]">
+      <div className="px-5 py-4 border-b border-[var(--line)]">
         <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--hop)] mb-2">
           ◉ On the deck
         </div>
@@ -2485,7 +2504,7 @@ function DisplayQueuePanel({ queue, flash }) {
       </div>
 
       {/* Up next */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-5 py-4">
         <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--text-faint)] mb-3">
           Up next · {upNext.length}
         </div>
@@ -2515,8 +2534,8 @@ function DisplayQueuePanel({ queue, flash }) {
       </div>
 
       {/* Footer */}
-      <div className="px-6 py-3 border-t border-[var(--line)] text-center">
-        <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-[var(--text-faint)]">
+      <div className="px-5 py-3 border-t border-[var(--line)] text-center">
+        <div className="font-mono text-[9px] tracking-[0.15em] uppercase text-[var(--text-faint)]">
           Request a record · inner-groove-vinyl.vercel.app
         </div>
       </div>
