@@ -13,6 +13,7 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <style>
   :root {
     --hop:        #6dc135;
@@ -2536,6 +2537,40 @@ function DisplayApp() {
     return () => clearInterval(t);
   }, [slides.length]);
 
+  // Keep the screen awake (Wake Lock API). Re-acquires if the tab is
+  // backgrounded then refocused (the OS releases the lock on visibility change).
+  useEffect(() => {
+    let wakeLock = null;
+    let released = false;
+
+    const acquire = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch (e) {
+        // Some browsers reject without a user gesture; the re-acquire on
+        // visibilitychange / click usually picks it up shortly after.
+      }
+    };
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && !released) acquire();
+    };
+
+    acquire();
+    document.addEventListener('visibilitychange', onVisible);
+    // Any interaction (e.g. the remote click) is a good moment to (re)acquire
+    document.addEventListener('click', acquire);
+
+    return () => {
+      released = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      document.removeEventListener('click', acquire);
+      if (wakeLock) { try { wakeLock.release(); } catch (e) {} }
+    };
+  }, []);
+
   // Flash the queue panel when a new item is added
   useEffect(() => {
     const queuedCount = queue.filter((q) => q.status === 'queued').length;
@@ -2596,9 +2631,80 @@ function DisplayApp() {
   );
 }
 
+// A QR code that renders to canvas via the qrcode CDN lib.
+// Configurable URL so it's easy to point at test vs production.
+const STACKS_QR_URL = 'https://inner-groove-vinyl.vercel.app';
+
+function StacksQR({ size = 180 }) {
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    let tries = 0;
+    let timer = null;
+    const draw = () => {
+      if (canvasRef.current && window.QRCode) {
+        window.QRCode.toCanvas(canvasRef.current, STACKS_QR_URL, {
+          width: size,
+          margin: 1,
+          color: { dark: '#0a0a0a', light: '#ffffff' },
+          errorCorrectionLevel: 'M',
+        }, (err) => { if (err) console.error(err); });
+      } else if (tries < 40) {
+        // QR library (CDN) may not be loaded yet — retry briefly
+        tries++;
+        timer = setTimeout(draw, 150);
+      }
+    };
+    draw();
+    return () => { if (timer) clearTimeout(timer); };
+  }, [size]);
+  return (
+    <div className="bg-white rounded-xl p-3 inline-block shadow-[0_0_30px_var(--hop-glow)]">
+      <canvas ref={canvasRef} />
+    </div>
+  );
+}
+
 function DisplayQueuePanel({ queue, flash }) {
   const playing = queue.find((q) => q.status === 'playing');
   const upNext  = queue.filter((q) => q.status === 'queued');
+  const fullyEmpty = !playing && upNext.length === 0;
+
+  // When nothing is playing and nothing is queued, show a big scan-to-request
+  // call to action instead of two separate "nothing here" messages.
+  if (fullyEmpty) {
+    return (
+      <div className={`flex flex-col h-full bg-[var(--bg-elev)] ${flash ? 'queue-flash' : ''}`}>
+        {/* Header */}
+        <div className="px-5 pt-5 pb-3 border-b border-[var(--line)]">
+          <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-[var(--text-faint)]">
+            Inner Groove · Now Spinning
+          </div>
+          <h1 className="font-display text-3xl leading-none mt-1 text-[var(--hop)]">
+            The Queue
+          </h1>
+        </div>
+        {/* Empty-state QR call to action */}
+        <div className="flex-1 flex flex-col items-center justify-center px-5 text-center gap-5">
+          <div className="font-display text-3xl text-[var(--text)] leading-none glow-pulse">
+            Spin a record
+          </div>
+          <StacksQR size={180} />
+          <div>
+            <div className="font-display text-2xl text-[var(--hop)] leading-none">Scan to browse</div>
+            <div className="text-sm text-[var(--text-dim)] mt-1.5 leading-snug">
+              Pick any record in The Stacks and<br />request it on the big screen.
+            </div>
+          </div>
+        </div>
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-[var(--line)] text-center">
+          <div className="font-mono text-[9px] tracking-[0.15em] uppercase text-[var(--text-faint)]">
+            inner-groove-vinyl.vercel.app
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col h-full bg-[var(--bg-elev)] ${flash ? 'queue-flash' : ''}`}>
@@ -2651,7 +2757,7 @@ function DisplayQueuePanel({ queue, flash }) {
         </div>
         {upNext.length === 0 ? (
           <div className="text-[var(--text-faint)] text-sm italic">
-            Queue's open — scan the QR on your table to request a record.
+            Queue's open — scan to request a record.
           </div>
         ) : (
           <ul className="space-y-2">
