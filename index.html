@@ -181,7 +181,7 @@
   }
   .rg-reel {
     display: flex; flex-direction: column;
-    animation: rg-spin var(--rg-duration, 2.6s) cubic-bezier(0.15, 0.4, 0.25, 1) forwards;
+    animation: rg-spin var(--rg-duration, 4.5s) cubic-bezier(0.08, 0.5, 0.15, 1) forwards;
     will-change: transform;
   }
   /* The result reveal — hop-green wash pulse + bounce-in */
@@ -2486,9 +2486,10 @@ function RandomGrooveModal({ inventory, onClose, onLockIn }) {
   const startSpin = useCallback(() => {
     if (pool.length === 0) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
-    // Build a reel: ~28 random covers, with the final one being the pick
+    // Build a longer reel for a meatier spin: ~50 random covers, with the
+    // final one being the pick. More covers + longer animation = more drama.
     const reel = [];
-    for (let i = 0; i < 28; i++) {
+    for (let i = 0; i < 50; i++) {
       reel.push(pool[Math.floor(Math.random() * pool.length)]);
     }
     reel[reel.length - 1] = pick;       // last item is the chosen one
@@ -2501,11 +2502,11 @@ function RandomGrooveModal({ inventory, onClose, onLockIn }) {
   // Kick off the first spin on mount
   useEffect(() => { startSpin(); }, [startSpin]);
 
-  // After the reel-spin animation, reveal the result
-  // The CSS animation runs ~2.6s; we transition phase right at the end.
+  // After the reel-spin animation, reveal the result.
+  // CSS animation runs ~4.5s; we transition phase right at the end.
   useEffect(() => {
     if (phase !== 'spinning') return;
-    const t = setTimeout(() => setPhase('revealed'), 2650);
+    const t = setTimeout(() => setPhase('revealed'), 4550);
     return () => clearTimeout(t);
   }, [phase, flashKey]);
 
@@ -2562,7 +2563,7 @@ function RandomGrooveModal({ inventory, onClose, onLockIn }) {
             {/* Spinning reel */}
             {phase === 'spinning' && reelItems.length > 0 && (
               <div className="rg-reel"
-                style={{ '--rg-distance': `-${distance}px`, '--rg-duration': '2.6s' }}>
+                style={{ '--rg-distance': `-${distance}px`, '--rg-duration': '4.5s' }}>
                 {reelItems.map((r, i) => (
                   <div key={i} className="flex-shrink-0" style={{ width: `${CELL}px`, height: `${CELL}px` }}>
                     <CoverImage src={r.cover_url} alt="" />
