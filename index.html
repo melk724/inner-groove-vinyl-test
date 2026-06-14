@@ -234,11 +234,11 @@ const { useState, useEffect, useMemo, useRef, useCallback } = React;
 // ============================================================================
 // CONFIG — these are PUBLIC values; safe to ship in the frontend
 // ============================================================================
-const SUPABASE_URL  = 'REPLACE_WITH_YOUR_SUPABASE_URL';
-const SUPABASE_ANON = 'REPLACE_WITH_YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL  = 'https://gyrfthjhacvoyhfilnjc.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd5cmZ0aGpoYWN2b3loZmlsbmpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMTE1MjMsImV4cCI6MjA4ODU4NzUyM30.cI2df-xYe2X-LzC2L4mrtbuhWasAR7tAEOi9qSY9_rM';
 
 // Admin route config — only used on /admin
-const ADMIN_PIN          = 'REPLACE_WITH_YOUR_PIN';
+const ADMIN_PIN          = '15147';
 const DISCOGS_LOOKUP_URL = `${SUPABASE_URL}/functions/v1/discogs-lookup`;
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
